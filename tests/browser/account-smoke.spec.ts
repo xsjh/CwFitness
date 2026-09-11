@@ -20,6 +20,7 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   await page.getByRole("button", { name: "登录" }).click();
 
   await expect(page.locator(".workspace-shell")).toBeVisible();
+  await expect(page.getByText("Unauthorized", { exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: "动作" }).click();
   await expect(page.getByLabel("负重方式")).toHaveCSS("backdrop-filter", "blur(16px) saturate(1.25)");

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AuthShell } from "./auth-shell";
 import { WorkoutWorkspace } from "./workout-workspace";
 
@@ -20,18 +20,12 @@ export function AuthExperience() {
   const [deviceId, setDeviceId] = useState("");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"error" | "success">("error");
+  const clearUser = useCallback(() => setUser(null), []);
 
   async function loadSession() {
     const response = await fetch("/api/auth/get-session?disableCookieCache=true", { cache: "no-store" });
     const session = (await response.json()) as { user?: User; session?: { id: string } } | null;
-    if (!session?.user) {
-      await fetch("/api/auth/sign-out", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
-      return false;
-    }
+    if (!session?.user) return false;
     setUser(session.user);
     setDeviceId(session.session?.id ?? "");
     return true;
@@ -111,7 +105,7 @@ export function AuthExperience() {
     setBusy(false);
   }
 
-  if (user) return <WorkoutWorkspace user={user} deviceId={deviceId} onSignOut={signOut} onAccountDeleted={() => setUser(null)} />;
+  if (user) return <WorkoutWorkspace user={user} deviceId={deviceId} onSignOut={signOut} onAuthenticationLost={clearUser} onAccountDeleted={clearUser} />;
 
   return (
     <AuthShell>

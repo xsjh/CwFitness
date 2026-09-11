@@ -24,6 +24,7 @@ type WorkoutWorkspaceProps = {
   user: { id: string; name: string; email: string };
   deviceId: string;
   onSignOut: () => Promise<void>;
+  onAuthenticationLost: () => void;
   onAccountDeleted: () => void;
 };
 
@@ -60,7 +61,7 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : "操作没有完成，请稍后重试。";
 }
 
-export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }: WorkoutWorkspaceProps) {
+export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLost, onAccountDeleted }: WorkoutWorkspaceProps) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [session, setSession] = useState<WorkoutSession | null>(null);
@@ -179,7 +180,9 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData()
       .catch((error) => {
-        if (active) setNotice(errorText(error));
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 401) onAuthenticationLost();
+        else setNotice(errorText(error));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -187,7 +190,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     return () => {
       active = false;
     };
-  }, [loadData]);
+  }, [loadData, onAuthenticationLost]);
 
   useEffect(() => {
     if (!session || session.status !== "ACTIVE") return;
@@ -251,6 +254,10 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
           await loadData();
           if (!options.quiet) setNotice(successMessage);
         } else {
+          if (replay.error instanceof ApiError && replay.error.status === 401) {
+            onAuthenticationLost();
+            return;
+          }
           setPendingSync(replay.remaining.length);
           setSyncError(errorText(replay.error));
           if (replay.error instanceof ApiError && (replay.error.code === "VERSION_CONFLICT" || replay.error.code === "SESSION_TAKEN_OVER")) {
