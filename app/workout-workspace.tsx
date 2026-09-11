@@ -5,6 +5,7 @@ import { ExerciseLibrary, type NewExerciseInput } from "./exercise-library";
 import { PlanEditor, type PlannedExerciseInput } from "./plan-editor";
 import { TrainingPanel } from "./training-panel";
 import { WorkoutHistory } from "./workout-history";
+import { dailyTrainingTime, ProgressView } from "./progress-view";
 import { SettingsPanel } from "./settings-panel";
 import {
   applySessionMutation,
@@ -554,6 +555,8 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     ?? allDays[0]
     ?? null;
   const canEditSession = session?.editingDeviceId === deviceId;
+  const todayDate = new Date().toLocaleDateString("en-CA", { timeZone: settings.timeZone });
+  const todayTrainingSeconds = dailyTrainingTime(workoutSessions, todayDate);
 
   return (
     <main className="workspace-shell">
@@ -568,6 +571,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
             <button type="button" disabled={offline} aria-current={view === "plans" ? "page" : undefined} onClick={() => setView("plans")}>计划</button>
             <button type="button" disabled={offline} aria-current={view === "exercises" ? "page" : undefined} onClick={() => setView("exercises")}>动作</button>
             <button type="button" disabled={offline} aria-current={view === "history" ? "page" : undefined} onClick={() => setView("history")}>历史</button>
+            <button type="button" disabled={offline} aria-current={view === "progress" ? "page" : undefined} onClick={() => setView("progress")}>进展</button>
             <button type="button" disabled={offline} aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}>设置</button>
             {session && <button type="button" aria-current={view === "training" ? "page" : undefined} onClick={() => setView("training")}>训练</button>}
           </nav>
@@ -634,6 +638,8 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
                       <div><span>训练计划</span><strong>{plans.length}</strong></div>
                       <div><span>动作</span><strong>{exercises.length}</strong></div>
                       <div><span>训练日</span><strong>{allDays.length}</strong></div>
+                      <div><span>今日训练时间</span><strong>{Math.floor(todayTrainingSeconds / 60)} 分</strong></div>
+                      <div><span>最近完成</span><strong>{workoutSessions[0]?.localStartDate ?? "—"}</strong></div>
                     </div>
                   </div>
                 </section>
@@ -672,6 +678,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
               )}
 
               {view === "history" && <WorkoutHistory workoutSessions={workoutSessions} busy={busy} weightUnit={settings.weightUnit} onCorrectSet={correctHistoricalSet} onDeleteSession={deleteHistoricalSession} />}
+              {view === "progress" && <ProgressView plans={plans} workoutSessions={workoutSessions} weightUnit={settings.weightUnit} />}
               {view === "settings" && <SettingsPanel settings={settings} busy={busy} onSave={saveSettings} onDelete={deleteAccount} />}
 
               {view === "training" && session && (

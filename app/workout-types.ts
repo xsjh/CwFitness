@@ -83,6 +83,7 @@ export type ExerciseResult = {
 
 export type WorkoutHistorySession = Omit<WorkoutSession, "status"> & {
   status: "COMPLETED";
+  workoutPlanId: string;
   workoutPlanName: string;
   workoutDayName: string;
   exerciseResults: ExerciseResult[];
@@ -90,4 +91,4 @@ export type WorkoutHistorySession = Omit<WorkoutSession, "status"> & {
 
 export type ExerciseProgress = { key: string; exerciseId: string; recent: Array<{ date: string; achievementRate: number; excessTargetValue: number; excessWeightGrams: number }>; progressionSuggestion: boolean };
 
-export type WorkspaceView = "today" | "plans" | "exercises" | "training" | "history" | "settings";
+export type WorkspaceView = "today" | "plans" | "exercises" | "progress" | "training" | "history" | "settings";

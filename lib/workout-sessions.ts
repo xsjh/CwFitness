@@ -42,6 +42,7 @@ export const workoutSessionSelect = {
 
 export const workoutSessionHistorySelect = {
   ...workoutSessionSelect,
+  workoutPlanId: true,
   workoutPlanName: true,
   workoutDayName: true,
   exercises: {
