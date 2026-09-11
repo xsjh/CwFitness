@@ -83,6 +83,7 @@ export function ExerciseLibrary({ exercises, busy, onCreate, onRename, onDelete 
                   event.preventDefault();
                   const name = String(new FormData(event.currentTarget).get("name"));
                   await onRename(exercise, name);
+                  event.currentTarget.closest("details")?.removeAttribute("open");
                 }}>
                   <label>
                     <span>新名称</span>
