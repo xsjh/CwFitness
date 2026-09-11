@@ -1,6 +1,5 @@
-# Unit test reports
+# 单元测试报告
 
-Reports produced by the `unit-test` skill land here as `<YYYY-MM-DD>-<topic>.md`.
+`unit-test` 技能产出的报告归档在这里，文件名为 `<YYYY-MM-DD>-<主题>.md`。
 
-Each report records the target, the cases run, pass/fail counts, and the coverage numbers from the
-same run.
+每份报告记录目标、用例数、通过/失败数，以及同一次运行得到的覆盖率数字。报告正文用中文。

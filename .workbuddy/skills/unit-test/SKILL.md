@@ -23,34 +23,34 @@ Read `CONTEXT.md` first. Test names and fixture values must use the project's do
 4. **Drive them green.** Run the unit layer with `npx vitest run`; while iterating on one file, `npx vitest run tests/<topic>.test.ts` is the tight loop. A red test is either a defect or a wrong expectation — say which one it is out loud before changing anything, and never hand off a red run.
    _Done when_ the unit layer exits 0.
 
-5. **Report.** Run `npx vitest run --coverage`, then write the report to `docs/testing-reports/<YYYY-MM-DD>-<topic>.md` using the format below, and give the same table in your reply. Coverage counts only what vitest executes: `app/api/` is largely exercised by the HTTP integration suite against a live server, so read its number as a floor rather than a verdict.
+5. **Report.** Run `npx vitest run --coverage`, then write the report to `docs/testing-reports/<YYYY-MM-DD>-<topic>.md` using the format below, and give the same table in your reply. **Write the report in Chinese** (headings, prose, and table headers); keep file paths, commands, and domain terms as they appear in the code. Coverage counts only what vitest executes: `app/api/` is largely exercised by the HTTP integration suite against a live server, so read its number as a floor rather than a verdict.
    _Done when_ the report file exists and its numbers match the run you just did.
 
 ## Report format
 
 ```markdown
-# <Topic> unit tests — <YYYY-MM-DD>
+# <主题> 单元测试 — <YYYY-MM-DD>
 
-**Command:** `npx vitest run`
-**Result:** <n> passed, <n> failed
+**命令：** `npx vitest run`
+**结果：** 通过 <n>，失败 <n>
 
-| Target | Cases | Passed | Failed |
+| 目标 | 用例数 | 通过 | 失败 |
 | --- | --- | --- | --- |
-| `lib/<file>.ts` | 5 | 5 | 0 |
+| `lib/<文件>.ts` | 5 | 5 | 0 |
 
-## Covered
+## 已覆盖
 
-- <behavior, stated in domain terms>
+- <用领域词描述的行为>
 
-## Not covered
+## 未覆盖
 
-- <behavior> — <why a unit test cannot pin it>
+- <行为> — <为什么单测兜不住>
 
-## Coverage
+## 覆盖率
 
-| File | Lines | Branches |
+| 文件 | 行 | 分支 |
 | --- | --- | --- |
-| `lib/<file>.ts` | 92% | 80% |
+| `lib/<文件>.ts` | 92% | 80% |
 ```
 
 ## Where tests live

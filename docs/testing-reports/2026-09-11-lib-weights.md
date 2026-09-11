@@ -1,30 +1,30 @@
-# lib/weights.ts unit tests — 2026-09-11
+# lib/weights.ts 单元测试 — 2026-09-11
 
-**Command:** `npx vitest run --coverage`
-**Result:** 23 passed, 0 failed (7 files)
+**命令：** `npx vitest run --coverage`
+**结果：** 通过 23，失败 0（7 个测试文件）
 
-| Target | Cases | Passed | Failed |
+| 目标 | 用例数 | 通过 | 失败 |
 | --- | --- | --- | --- |
 | `lib/weights.ts` | 9 | 9 | 0 |
 
-## Covered
+## 已覆盖
 
-- A Weight Unit of kilograms converts to grams at 1 000 g/kg.
-- A Weight Unit of pounds converts using the international pound (453.59237 g), rounded to the nearest whole gram.
-- Weight values that are zero, negative, non-finite, or not numbers are rejected rather than converted, so bad client input cannot become a stored weight.
-- An unknown Weight Unit is rejected.
-- `weightFromGrams` restores a stored weight to the unit it was entered in: exactly for kilograms, and within one gram for pounds, which is what "switching units converts displayed values without changing their meaning" requires.
+- 公斤（kg）按 1 000 g/kg 换算为克。
+- 磅（lb）按国际磅（453.59237 g）换算，并四舍五入到整克。
+- 零、负数、非有限值、非数字的重量一律拒绝而不是换算，客户端传入的脏数据不会变成一条已存储的重量。
+- 无法识别的 Weight Unit 直接拒绝。
+- `weightFromGrams` 能把存储的克数还原成当初录入的单位：公斤精确还原，磅误差在 1 克以内 —— 这正是「切换单位只换算显示值、不改变其含义」所要求的。
 
-## Not covered
+## 未覆盖
 
-- The API layer that validates and stores a Weight Unit — exercised by the HTTP integration suite against a live server, not by a unit test.
-- Switching the display unit across an existing plan's values — a whole-flow behavior owned by the component and integration layers.
-- Sub-gram precision is deliberately not pinned; the domain stores whole grams, so any finer expectation would over-specify.
+- 校验并存储 Weight Unit 的 API 层 —— 由 HTTP 集成套件对真实服务覆盖，不属于单测范围。
+- 在已有计划数据上切换显示单位 —— 整条链路的行为，归组件层与集成层。
+- 亚克级精度刻意不锁：领域里存的是整克，再细的期望都是过度规定。
 
-## Coverage
+## 覆盖率
 
-| File | Lines | Branches | Functions | Statements |
+| 文件 | 行 | 分支 | 函数 | 语句 |
 | --- | --- | --- | --- | --- |
 | `lib/weights.ts` | 100% | 100% | 100% | 100% |
 
-Whole-project unit coverage after this run: 15.67% lines across `lib/` and `app/` (the HTTP integration suite covers `app/api/` and is invisible to this number).
+本次运行后的整体单测覆盖率：`lib/` 与 `app/` 合计行覆盖 15.67%。`app/api/` 由 HTTP 集成套件覆盖，不计入该数字。

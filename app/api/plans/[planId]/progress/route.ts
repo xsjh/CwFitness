@@ -28,7 +28,7 @@ export async function GET(request: Request, context: { params: Promise<{ planId:
     orderBy: { workoutSession: { completedAt: "desc" } },
     include: { exercise: { select: { name: true } }, setResults: true, workoutSession: { select: { localStartDate: true } } },
   });
-  return Response.json({ progress: plannedExercises.map((planned) => {
+  const progress = plannedExercises.map((planned) => {
     const items = histories.filter((history) => history.plannedExerciseId === planned.id);
     const streak = items.slice(0, 3);
     const recent = items.slice(0, 12).map((history) => ({ date: history.workoutSession.localStartDate, ...scoreExercises([history])[0] }));
@@ -37,5 +37,6 @@ export async function GET(request: Request, context: { params: Promise<{ planId:
       && streak.filter((item) => { const score = scoreExercises([item])[0]; return score.excessTargetValue > 0 || score.excessWeightGrams > 0; }).length >= 2
       && streak.every((item) => sameTarget(item, planned));
     return { workoutPlanId: planId, plannedExerciseId: planned.id, exerciseId: planned.exerciseId, recent, progressionSuggestion: qualifies, suggestion: qualifies ? suggestionFor(planned.exercise.resistanceType, planned.exercise.targetType) : null };
-  }) });
+  }).filter((entry) => entry.recent.length > 0);
+  return Response.json({ progress });
 }
