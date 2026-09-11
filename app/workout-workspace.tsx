@@ -76,6 +76,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
   const [offline, setOffline] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
   const [syncError, setSyncError] = useState("");
+  const [dataVersion, setDataVersion] = useState<number | null>(null);
 
   const restoreDraft = useCallback(async () => {
     const draft = await loadWorkoutSessionDraft(user.id);
@@ -112,18 +113,20 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
       }
     }
 
-    const [plansBody, exercisesBody, sessionBody, historyBody, settingsBody] = await Promise.all([
+    const [plansBody, exercisesBody, sessionBody, historyBody, settingsBody, versionBody] = await Promise.all([
       apiRequest<{ plans: Plan[] }>("/api/plans", { cache: "no-store" }),
       apiRequest<{ exercises: Exercise[] }>("/api/exercises", { cache: "no-store" }),
       apiRequest<{ workoutSession: WorkoutSession | null }>("/api/workout-sessions/active", { cache: "no-store" }),
       apiRequest<{ workoutSessions: WorkoutHistorySession[] }>("/api/workout-sessions", { cache: "no-store" }),
       apiRequest<{ settings: { timeZone: string; weightUnit: "kg" | "lb" } }>("/api/settings", { cache: "no-store" }),
+      apiRequest<{ dataVersion: number }>("/api/backup/version", { cache: "no-store" }),
     ]);
     setPlans(plansBody.plans);
     setExercises(exercisesBody.exercises);
     setSession(sessionBody.workoutSession);
     setWorkoutSessions(historyBody.workoutSessions);
     setSettings(settingsBody.settings);
+    setDataVersion(versionBody.dataVersion);
     setOffline(false);
     setSyncError("");
     setPendingSync(0);
@@ -141,6 +144,17 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     const progressBodies = await Promise.all(plansBody.plans.map((plan) => apiRequest<{ progress: ExerciseProgress[] }>(`/api/plans/${plan.id}/progress`, { cache: "no-store" })));
     setProgress(progressBodies.flatMap((body) => body.progress));
   }, [restoreDraft, syncPendingMutations, user.id]);
+
+  useEffect(() => {
+    const channel = new BroadcastChannel("cwfitness-backup");
+    channel.onmessage = () => { void loadData().then(() => setNotice("已检测到数据恢复，页面已更新。")); };
+    const timer = window.setInterval(() => {
+      void apiRequest<{ dataVersion: number }>("/api/backup/version", { cache: "no-store" }).then((body) => {
+        if (dataVersion !== null && body.dataVersion !== dataVersion) { void loadData().then(() => setNotice("已检测到其他设备恢复的数据，页面已更新。")); }
+      }).catch(() => undefined);
+    }, 30_000);
+    return () => { window.clearInterval(timer); channel.close(); };
+  }, [dataVersion, loadData]);
 
   useEffect(() => {
     let active = true;
@@ -522,6 +536,20 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
   }
 
   async function saveSettings(nextSettings: { timeZone: string; weightUnit: "kg" | "lb" }) { await runMutation(() => apiRequest("/api/settings", { method: "PATCH", body: JSON.stringify(nextSettings) }), "设置已保存。"); }
+  async function exportBackup() {
+    await runMutation(async () => {
+      const backup = await apiRequest<{ backup: unknown }>("/api/backup", { cache: "no-store" });
+      const href = URL.createObjectURL(new Blob([JSON.stringify(backup.backup, null, 2)], { type: "application/json" }));
+      const link = document.createElement("a"); link.href = href; link.download = "cwfitness-backup.json"; link.click(); URL.revokeObjectURL(href);
+    }, "JSON 备份已导出。");
+  }
+  async function previewRestore(backup: unknown) {
+    try { const result = await apiRequest<{ summary: { plans: number; workoutDays: number; plannedExercises: number; exercises: number; workoutSessions: number; sessionExercises: number; setResults: number } }>("/api/backup/restore", { method: "POST", body: JSON.stringify({ backup }) }); return result.summary; } catch (error) { setNotice(errorText(error)); return undefined; }
+  }
+  async function restoreBackup(backup: unknown) {
+    const result = await runMutation(() => apiRequest("/api/backup/restore", { method: "POST", body: JSON.stringify({ backup, confirmation: "RESTORE" }) }), "备份已恢复，所有设备会重新加载数据。");
+    if (result !== undefined) { await clearWorkoutSessionDraft(user.id); new BroadcastChannel("cwfitness-backup").postMessage("restored"); setView("today"); }
+  }
   async function deleteAccount() { const result = await runMutation(() => apiRequest("/api/account", { method: "DELETE", body: JSON.stringify({ confirmation: "DELETE" }) }), "用户已删除。"); if (result !== undefined) onAccountDeleted(); }
 
   async function abandonWorkout() {
@@ -692,7 +720,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
 
               {view === "history" && <WorkoutHistory workoutSessions={workoutSessions} busy={busy} weightUnit={settings.weightUnit} onCorrectSet={correctHistoricalSet} onDeleteSession={deleteHistoricalSession} />}
               {view === "progress" && <ProgressView plans={plans} workoutSessions={workoutSessions} progress={progress} weightUnit={settings.weightUnit} />}
-              {view === "settings" && <SettingsPanel settings={settings} busy={busy} onSave={saveSettings} onDelete={deleteAccount} />}
+              {view === "settings" && <SettingsPanel settings={settings} busy={busy} onSave={saveSettings} onDelete={deleteAccount} onExport={exportBackup} onPreviewRestore={previewRestore} onRestore={restoreBackup} />}
 
               {view === "training" && session && (
                 <TrainingPanel

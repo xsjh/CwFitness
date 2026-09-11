@@ -15,6 +15,7 @@ model User {
   image           String?
   timeZone        String           @default("UTC")
   weightUnit      String           @default("kg")
+  dataVersion     Int              @default(1)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   sessions        Session[]

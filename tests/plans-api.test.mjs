@@ -396,6 +396,55 @@ async function getPlan(cookie, planId) {
   return plan;
 }
 
+test('A User previews and restores a complete versioned JSON backup without partial imports', async () => {
+  const cookie = await signUp('BackupOwner');
+  const settings = await request('/api/settings', {
+    method: 'PATCH', headers: { cookie }, body: JSON.stringify({ timeZone: 'America/New_York', weightUnit: 'lb' }),
+  });
+  assert.equal(settings.status, 200);
+  const plan = await createPlan(cookie, 'Backup Plan');
+  const day = await createWorkoutDay(cookie, plan.id, 'Backup Day');
+  const exercise = await createExercise(cookie, { name: 'Backup Press', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' });
+  await addPlannedExercise(cookie, plan.id, day.id, { exerciseId: exercise.id, setCount: 1, targetValue: 8, weight: 60, weightUnit: 'kg' });
+  await completeSingleSetSession(cookie, day.id, 9, 65);
+
+  const exported = await request('/api/backup', { headers: { cookie } });
+  assert.equal(exported.status, 200);
+  const backup = (await exported.json()).backup;
+  assert.equal(backup.schemaVersion, 1);
+  assert.match(backup.exportedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(backup.settings.weightUnit, 'lb');
+  assert.equal(backup.plans[0].id, plan.id);
+  assert.equal(backup.exercises[0].id, exercise.id);
+  assert.equal(backup.workoutSessions[0].exercises[0].setResults[0].actualValue, 9);
+  assert.equal(JSON.stringify(backup).includes('password'), false);
+  const versionBeforeRestore = await request('/api/backup/version', { headers: { cookie } });
+  assert.equal(versionBeforeRestore.status, 200);
+  const beforeDataVersion = (await versionBeforeRestore.json()).dataVersion;
+
+  const preview = await request('/api/backup/restore', { method: 'POST', headers: { cookie }, body: JSON.stringify({ backup }) });
+  assert.equal(preview.status, 200);
+  assert.deepEqual((await preview.json()).summary, { plans: 1, workoutDays: 1, plannedExercises: 1, exercises: 1, workoutSessions: 1, sessionExercises: 1, setResults: 1 });
+
+  const malformed = await request('/api/backup/restore', { method: 'POST', headers: { cookie }, body: JSON.stringify({ backup: { ...backup, schemaVersion: 99 }, confirmation: 'RESTORE' }) });
+  assert.equal(malformed.status, 400);
+  const brokenReference = structuredClone(backup);
+  brokenReference.plans[0].workoutDays[0].plannedExercises[0].exerciseId = 'missing-exercise';
+  const rejected = await request('/api/backup/restore', { method: 'POST', headers: { cookie }, body: JSON.stringify({ backup: brokenReference, confirmation: 'RESTORE' }) });
+  assert.equal(rejected.status, 400);
+  assert.equal((await getPlan(cookie, plan.id)).name, 'Backup Plan', 'validation failures leave existing data untouched');
+
+  const changed = await request(`/api/plans/${plan.id}`, { method: 'PATCH', headers: { cookie }, body: JSON.stringify({ name: 'Changed after export', version: 1 }) });
+  assert.equal(changed.status, 200);
+  const restored = await request('/api/backup/restore', { method: 'POST', headers: { cookie }, body: JSON.stringify({ backup, confirmation: 'RESTORE' }) });
+  assert.equal(restored.status, 200);
+  const versionAfterRestore = await request('/api/backup/version', { headers: { cookie } });
+  assert.equal((await versionAfterRestore.json()).dataVersion, beforeDataVersion + 1, 'restore publishes a newer data version for other devices');
+  assert.equal((await getPlan(cookie, plan.id)).name, 'Backup Plan');
+  const restoredSettings = await request('/api/settings', { headers: { cookie } });
+  assert.deepEqual((await restoredSettings.json()).settings, { timeZone: 'America/New_York', weightUnit: 'lb' });
+});
+
 test('Workout Day ordering is versioned and persists through plan reads', async () => {
   const cookie = await signUp('DayOrdering');
   const plan = await createPlan(cookie, 'Ordered Plan');
