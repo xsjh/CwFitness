@@ -54,5 +54,11 @@ export async function getVerifiedSession(request: Request) {
     headers: request.headers,
     query: { disableCookieCache: true },
   });
-  return session && (!requireEmailVerification || session.user.emailVerified) ? session : null;
+  if (!session || (requireEmailVerification && !session.user.emailVerified)) return null;
+
+  const requestedDeviceId = request.headers.get("x-cwfitness-device-id")?.trim();
+  const deviceId = requestedDeviceId && requestedDeviceId.length >= 8 && requestedDeviceId.length <= 100
+    ? requestedDeviceId
+    : session.session.id;
+  return { ...session, session: { ...session.session, id: deviceId } };
 }

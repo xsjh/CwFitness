@@ -3,9 +3,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AuthShell } from "./auth-shell";
 import { WorkoutWorkspace } from "./workout-workspace";
+import { loadWorkoutSessionDraft } from "./workout-outbox";
 
 type User = { id: string; name: string; email: string; emailVerified: boolean };
 type AuthMode = "sign-in" | "sign-up" | "forgot-password";
+const deviceStorageKey = "cwfitness-device-id";
 
 async function errorMessage(response: Response) {
   const body = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -28,8 +30,12 @@ export function AuthExperience() {
       if (!response.ok) return false;
       const session = (await response.json()) as { user?: User; session?: { id: string } } | null;
       if (!session?.user) return false;
+      const savedDeviceId = window.localStorage.getItem(deviceStorageKey);
+      const draft = savedDeviceId ? null : await loadWorkoutSessionDraft(session.user.id);
+      const stableDeviceId = savedDeviceId ?? draft?.session.editingDeviceId ?? session.session?.id ?? crypto.randomUUID();
+      window.localStorage.setItem(deviceStorageKey, stableDeviceId);
       setUser(session.user);
-      setDeviceId(session.session?.id ?? "");
+      setDeviceId(stableDeviceId);
       return true;
     } catch {
       return false;

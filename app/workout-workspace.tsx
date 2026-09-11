@@ -41,11 +41,12 @@ class ApiError extends Error {
   }
 }
 
-async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+async function rawApiRequest<T>(path: string, init: RequestInit | undefined, deviceId: string): Promise<T> {
   const response = await fetch(path, {
     ...init,
     headers: {
       ...(init?.body ? { "content-type": "application/json" } : {}),
+      "x-cwfitness-device-id": deviceId,
       ...init?.headers,
     },
   });
@@ -80,6 +81,9 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
   const [dataVersion, setDataVersion] = useState<number | null>(null);
   const [telemetryEnabled, setTelemetryEnabled] = useState<boolean | null>(null);
   const telemetryPageRecorded = useRef(false);
+  const apiRequest = useCallback(function requestWithDevice<T>(path: string, init?: RequestInit) {
+    return rawApiRequest<T>(path, init, deviceId);
+  }, [deviceId]);
 
   function recordTelemetry(category: "page_visit" | "feature_operation" | "sync_failure" | "sanitized_error") {
     if (telemetryEnabled !== true) return;
@@ -103,7 +107,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
       method: mutation.request.method,
       body: mutation.request.body,
     }));
-  }, [user.id]);
+  }, [apiRequest, user.id]);
 
   const loadData = useCallback(async () => {
     const pending = await queuedSessionMutations(user.id);
@@ -160,7 +164,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
       progressBodies.push(await apiRequest<{ progress: ExerciseProgress[] }>(`/api/plans/${plan.id}/progress`, { cache: "no-store" }));
     }
     setProgress(progressBodies.flatMap((body) => body.progress));
-  }, [onAuthenticationLost, restoreDraft, syncPendingMutations, user.id]);
+  }, [apiRequest, onAuthenticationLost, restoreDraft, syncPendingMutations, user.id]);
 
   const handleBackgroundError = useCallback(async (error: unknown) => {
     if (!(error instanceof ApiError) || error.status !== 401) {
@@ -197,7 +201,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
       }).catch(handleBackgroundError);
     }, 30_000);
     return () => { window.clearInterval(timer); channel.close(); };
-  }, [dataVersion, handleBackgroundError, refreshData]);
+  }, [apiRequest, dataVersion, handleBackgroundError, refreshData]);
 
   useEffect(() => { if (telemetryEnabled === true && !telemetryPageRecorded.current) { telemetryPageRecorded.current = true; void fetch("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ category: "page_visit" }) }).catch(() => undefined); } }, [telemetryEnabled]);
 
@@ -232,7 +236,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
     heartbeat();
     const timer = window.setInterval(heartbeat, 60_000);
     return () => window.clearInterval(timer);
-  }, [refreshData, session]);
+  }, [apiRequest, refreshData, session]);
 
   useEffect(() => {
     const reconnect = () => { void refreshData(); };

@@ -62,4 +62,13 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   await page.getByRole("button", { name: "记录完成" }).click();
   await expect(page.getByRole("button", { name: "更新记录" })).toBeVisible();
   await expect(page.getByText("第 1 组已记录。", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "退出" }).click();
+  await page.getByLabel("邮箱").fill(email);
+  await page.getByRole("textbox", { name: /密码/ }).fill(password);
+  await page.getByRole("button", { name: "登录" }).click();
+
+  await expect(page.getByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeVisible();
+  await expect(page.getByText(/另一台设备.*训练/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "记录完成" }).first()).toBeEnabled();
 });

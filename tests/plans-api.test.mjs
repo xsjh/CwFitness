@@ -1077,6 +1077,37 @@ test('A stale parent version cannot add a Workout Day', async () => {
   assert.equal(conflict.current.version, 2);
 });
 
+test('The same browser can continue an In-progress Session after signing in again', async () => {
+  const deviceId = `browser-${crypto.randomUUID()}`;
+  const { cookie: firstSession, email } = await registerVerifiedUser('SameBrowserSession');
+  const plan = await createPlan(firstSession, 'Same Browser Plan');
+  const day = await createWorkoutDay(firstSession, plan.id, 'Same Browser Day');
+  const exercise = await createExercise(firstSession, {
+    name: 'Same Browser Press', resistanceType: 'BODYWEIGHT', targetType: 'REPETITIONS',
+  });
+  await addPlannedExercise(firstSession, plan.id, day.id, {
+    exerciseId: exercise.id, setCount: 1, targetValue: 8,
+  });
+  const started = await request('/api/workout-sessions', {
+    method: 'POST', headers: { cookie: firstSession, 'x-cwfitness-device-id': deviceId },
+    body: JSON.stringify({ workoutDayId: day.id, timeZone: 'Asia/Shanghai' }),
+  });
+  assert.equal(started.status, 201);
+  const workoutSession = (await started.json()).workoutSession;
+
+  const signedInAgain = await request('/api/auth/sign-in/email', {
+    method: 'POST',
+    body: JSON.stringify({ email, password: 'test-password-123' }),
+  });
+  assert.equal(signedInAgain.status, 200);
+  const secondSession = signedInAgain.headers.getSetCookie().map((value) => value.split(';', 1)[0]).join('; ');
+  const heartbeat = await request(`/api/workout-sessions/${workoutSession.id}/heartbeat`, {
+    method: 'POST', headers: { cookie: secondSession, 'x-cwfitness-device-id': deviceId }, body: '{}',
+  });
+
+  assert.equal(heartbeat.status, 204);
+});
+
 test('A second device can explicitly take over an In-progress Session', async () => {
   const { cookie: firstDevice, email } = await registerVerifiedUser('SessionTakeover');
   const secondSignIn = await request('/api/auth/sign-in/email', {
