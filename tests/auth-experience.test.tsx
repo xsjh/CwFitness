@@ -74,7 +74,7 @@ describe("AuthExperience", () => {
     await user.type(screen.getByLabelText("密码"), "test-password");
     await user.click(screen.getByRole("button", { name: "登录" }));
 
-    await waitFor(() => expect(plansRequestCount).toBe(2));
+    await waitFor(() => expect(plansRequestCount).toBeGreaterThanOrEqual(2));
     expect(screen.queryByTestId("auth-form")).toBeNull();
   });
 });

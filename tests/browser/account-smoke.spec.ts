@@ -46,20 +46,20 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   await page.getByLabel("训练日名称").fill("测试训练日");
   await page.getByRole("button", { name: "添加训练日" }).click();
 
-  await page.getByText("添加动作", { exact: true }).click();
-  await page.getByLabel("动作").selectOption({ label: "已改名深蹲" });
+  await page.locator("summary").filter({ hasText: "添加动作" }).click();
+  await page.locator('select[name="exerciseId"]').selectOption({ label: "已改名深蹲" });
   await expect(page.getByLabel("目标次数")).toBeVisible();
   await expect(page.getByLabel(/重量 kg/)).toBeVisible();
-  await page.getByLabel("动作").selectOption({ label: "测试平板支撑" });
+  await page.locator('select[name="exerciseId"]').selectOption({ label: "测试平板支撑" });
   await expect(page.getByLabel("目标时长（秒）")).toBeVisible();
   await expect(page.getByLabel(/重量 kg/)).toBeHidden();
   await page.getByRole("button", { name: "添加动作" }).click();
-  await expect(page.getByText("添加动作", { exact: true })).toBeVisible();
+  await expect(page.locator("summary").filter({ hasText: "添加动作" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "测试平板支撑" })).toBeVisible();
 
   await page.getByRole("button", { name: "开始训练" }).click();
   await expect(page.getByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeVisible();
-  await page.getByRole("button", { name: "记录完成" }).click();
+  await page.getByRole("button", { name: "记录完成" }).first().click();
   await expect(page.getByRole("button", { name: "更新记录" })).toBeVisible();
   await expect(page.getByText("第 1 组已记录。", { exact: true })).toHaveCount(0);
 
@@ -68,6 +68,8 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   await page.getByRole("textbox", { name: /密码/ }).fill(password);
   await page.getByRole("button", { name: "登录" }).click();
 
+  await expect(page.getByRole("heading", { name: "有一场训练正在进行。" })).toBeVisible();
+  await page.getByRole("button", { name: "继续进入训练" }).click();
   await expect(page.getByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeVisible();
   await expect(page.getByText(/另一台设备.*训练/)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "记录完成" }).first()).toBeEnabled();
