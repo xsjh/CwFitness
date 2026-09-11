@@ -8,3 +8,5 @@ generated/
 playwright-report/
 test-results/
 .local-mail/
+coverage/
+.workbuddy/memory/
