@@ -16,6 +16,7 @@ model User {
   timeZone        String           @default("UTC")
   weightUnit      String           @default("kg")
   dataVersion     Int              @default(1)
+  telemetryEnabled Boolean         @default(true)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   sessions        Session[]
@@ -23,8 +24,20 @@ model User {
   workoutPlans    WorkoutPlan[]
   exercises       Exercise[]
   workoutSessions WorkoutSession[]
+  telemetryEvents TelemetryEvent[]
 
   @@map("user")
+}
+
+model TelemetryEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("telemetry_event")
 }
 
 model Session {

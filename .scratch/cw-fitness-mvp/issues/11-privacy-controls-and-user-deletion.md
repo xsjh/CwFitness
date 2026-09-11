@@ -4,7 +4,7 @@
 
 **Blocked by:** 10 (Implement JSON backup restore)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Telemetry defaults to page visits, feature-operation categories, synchronization failures, and sanitized errors only.
 - [ ] Telemetry never contains Workout Plan names, Exercise names, weights, repetitions, durations, training dates, or notes.
@@ -13,4 +13,3 @@
 - [ ] User Deletion requires a separate explicit confirmation and cannot be completed accidentally.
 - [ ] A successful deletion removes Workout Plans, Exercises, Workout Sessions, settings, drafts, and telemetry identifiers, and revokes all account Sessions.
 - [ ] Automated tests cover telemetry redaction and opt-out, deletion cancellation, deletion confirmation, cascade scope, and Session revocation.
-

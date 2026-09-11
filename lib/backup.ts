@@ -50,7 +50,7 @@ export function parseFitnessBackup(value: unknown): FitnessBackup | null {
   }
   for (const plan of plans as RecordValue[]) {
     const days = Array.isArray(plan.workoutDays) ? plan.workoutDays.map(object) : null;
-    if (!validBase(plan) || !text(plan.name) || !(plan.archivedAt === null || date(plan.archivedAt)) || !enumValue(plan.accentColor, ["sage", "ocean", "sunset", "violet"]) || !text(plan.coverKey) || !days || days.some((item) => !item)) return null;
+    if (!validBase(plan) || !text(plan.name) || !(plan.archivedAt === null || date(plan.archivedAt)) || !enumValue(plan.accentColor, ["sage", "slate", "clay", "ocean"]) || !enumValue(plan.coverKey, ["strength", "endurance", "mobility", "balance"]) || !days || days.some((item) => !item)) return null;
     planIds.add(plan.id as string);
     for (const day of days as RecordValue[]) {
       const planned = Array.isArray(day.plannedExercises) ? day.plannedExercises.map(object) : null;
@@ -68,7 +68,7 @@ export function parseFitnessBackup(value: unknown): FitnessBackup | null {
     sessionIds.add(session.id as string);
     for (const exercise of sessionExercises as RecordValue[]) {
       const results = Array.isArray(exercise.setResults) ? exercise.setResults.map(object) : null;
-      if (!text(exercise.id) || !exerciseIds.has(exercise.exerciseId as string) || !text(exercise.exerciseName) || !enumValue(exercise.resistanceType, ["WEIGHTED", "BODYWEIGHT"]) || !enumValue(exercise.targetType, ["REPETITIONS", "DURATION"]) || !integer(exercise.setCount, 1) || !integer(exercise.targetValue, 1) || !optionalInteger(exercise.weightGrams) || !integer(exercise.position) || !enumValue(exercise.source, ["PLANNED", "ADDED"]) || !(exercise.plannedExerciseId === null || plannedIds.has(exercise.plannedExerciseId as string)) || !(exercise.removedAt === null || date(exercise.removedAt)) || !date(exercise.createdAt) || !date(exercise.updatedAt) || !results || results.some((item) => !item) || sessionExerciseIds.has(exercise.id as string)) return null;
+      if (!text(exercise.id) || !exerciseIds.has(exercise.exerciseId as string) || !text(exercise.exerciseName) || !enumValue(exercise.resistanceType, ["WEIGHTED", "BODYWEIGHT"]) || !enumValue(exercise.targetType, ["REPETITIONS", "DURATION"]) || !integer(exercise.setCount, 1) || !integer(exercise.targetValue, 1) || !optionalInteger(exercise.weightGrams) || !integer(exercise.position) || !enumValue(exercise.source, ["PLANNED", "ADDED"]) || !(exercise.plannedExerciseId === null || plannedIds.has(exercise.plannedExerciseId as string)) || !(exercise.removedAt === null || date(exercise.removedAt)) || !date(exercise.createdAt) || !results || results.some((item) => !item) || sessionExerciseIds.has(exercise.id as string)) return null;
       sessionExerciseIds.add(exercise.id as string);
       const setIndexes = new Set<number>();
       for (const result of results as RecordValue[]) {

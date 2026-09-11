@@ -434,7 +434,8 @@ test('A User previews and restores a complete versioned JSON backup without part
   assert.equal(rejected.status, 400);
   assert.equal((await getPlan(cookie, plan.id)).name, 'Backup Plan', 'validation failures leave existing data untouched');
 
-  const changed = await request(`/api/plans/${plan.id}`, { method: 'PATCH', headers: { cookie }, body: JSON.stringify({ name: 'Changed after export', version: 1 }) });
+  const currentBeforeChange = await getPlan(cookie, plan.id);
+  const changed = await request(`/api/plans/${plan.id}`, { method: 'PATCH', headers: { cookie }, body: JSON.stringify({ name: 'Changed after export', version: currentBeforeChange.version }) });
   assert.equal(changed.status, 200);
   const restored = await request('/api/backup/restore', { method: 'POST', headers: { cookie }, body: JSON.stringify({ backup, confirmation: 'RESTORE' }) });
   assert.equal(restored.status, 200);
@@ -443,6 +444,36 @@ test('A User previews and restores a complete versioned JSON backup without part
   assert.equal((await getPlan(cookie, plan.id)).name, 'Backup Plan');
   const restoredSettings = await request('/api/settings', { headers: { cookie } });
   assert.deepEqual((await restoredSettings.json()).settings, { timeZone: 'America/New_York', weightUnit: 'lb' });
+});
+
+test('A User controls sanitized telemetry and explicitly deletes every owned record', async () => {
+  const cookie = await signUp('PrivacyOwner');
+  const privacy = await request('/api/privacy', { headers: { cookie } });
+  assert.deepEqual(await privacy.json(), { telemetryEnabled: true });
+  const recorded = await request('/api/telemetry', {
+    method: 'POST', headers: { cookie }, body: JSON.stringify({ category: 'page_visit', planName: 'Private Plan', exerciseName: 'Private Exercise', weight: 120, repetitions: 8, duration: 60, trainingDate: '2001-01-01' }),
+  });
+  assert.equal(recorded.status, 204);
+  const telemetry = await request('/api/telemetry', { headers: { cookie } });
+  const events = (await telemetry.json()).events;
+  assert.deepEqual(events.map((event) => event.category), ['page_visit']);
+  assert.equal(JSON.stringify(events).match(/Private Plan|Private Exercise|120|2001-01-01/), null, 'telemetry redacts training data');
+  const optedOut = await request('/api/privacy', { method: 'PATCH', headers: { cookie }, body: JSON.stringify({ telemetryEnabled: false }) });
+  assert.deepEqual(await optedOut.json(), { telemetryEnabled: false });
+  assert.equal((await request('/api/telemetry', { method: 'POST', headers: { cookie }, body: JSON.stringify({ category: 'sync_failure' }) })).status, 204);
+  assert.equal((await (await request('/api/telemetry', { headers: { cookie } })).json()).events.length, 1, 'opt-out stops new telemetry');
+
+  const plan = await createPlan(cookie, 'Deletion Plan');
+  const day = await createWorkoutDay(cookie, plan.id, 'Deletion Day');
+  const exercise = await createExercise(cookie, { name: 'Deletion Press', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' });
+  await addPlannedExercise(cookie, plan.id, day.id, { exerciseId: exercise.id, setCount: 1, targetValue: 8, weight: 60, weightUnit: 'kg' });
+  await completeSingleSetSession(cookie, day.id, 8, 60);
+  const impact = await request('/api/account', { headers: { cookie } });
+  assert.deepEqual((await impact.json()).summary, { plans: 1, workoutDays: 1, plannedExercises: 1, exercises: 1, workoutSessions: 1, sessionExercises: 1, setResults: 1, telemetryEvents: 1 });
+  assert.equal((await request('/api/account', { method: 'DELETE', headers: { cookie }, body: '{}' })).status, 400);
+  assert.equal((await request('/api/plans', { headers: { cookie } })).status, 200, 'cancelling deletion preserves the account');
+  assert.equal((await request('/api/account', { method: 'DELETE', headers: { cookie }, body: JSON.stringify({ confirmation: 'DELETE' }) })).status, 204);
+  assert.equal((await request('/api/plans', { headers: { cookie } })).status, 401, 'deletion revokes the authenticated Session');
 });
 
 test('Workout Day ordering is versioned and persists through plan reads', async () => {

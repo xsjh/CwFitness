@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ExerciseLibrary, type NewExerciseInput } from "./exercise-library";
 import { PlanEditor, type PlannedExerciseInput } from "./plan-editor";
 import { TrainingPanel } from "./training-panel";
@@ -77,6 +77,13 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
   const [pendingSync, setPendingSync] = useState(0);
   const [syncError, setSyncError] = useState("");
   const [dataVersion, setDataVersion] = useState<number | null>(null);
+  const [telemetryEnabled, setTelemetryEnabled] = useState<boolean | null>(null);
+  const telemetryPageRecorded = useRef(false);
+
+  function recordTelemetry(category: "page_visit" | "feature_operation" | "sync_failure" | "sanitized_error") {
+    if (telemetryEnabled !== true) return;
+    void fetch("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ category }) }).catch(() => undefined);
+  }
 
   const restoreDraft = useCallback(async () => {
     const draft = await loadWorkoutSessionDraft(user.id);
@@ -113,13 +120,14 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
       }
     }
 
-    const [plansBody, exercisesBody, sessionBody, historyBody, settingsBody, versionBody] = await Promise.all([
+    const [plansBody, exercisesBody, sessionBody, historyBody, settingsBody, versionBody, privacyBody] = await Promise.all([
       apiRequest<{ plans: Plan[] }>("/api/plans", { cache: "no-store" }),
       apiRequest<{ exercises: Exercise[] }>("/api/exercises", { cache: "no-store" }),
       apiRequest<{ workoutSession: WorkoutSession | null }>("/api/workout-sessions/active", { cache: "no-store" }),
       apiRequest<{ workoutSessions: WorkoutHistorySession[] }>("/api/workout-sessions", { cache: "no-store" }),
       apiRequest<{ settings: { timeZone: string; weightUnit: "kg" | "lb" } }>("/api/settings", { cache: "no-store" }),
       apiRequest<{ dataVersion: number }>("/api/backup/version", { cache: "no-store" }),
+      apiRequest<{ telemetryEnabled: boolean }>("/api/privacy", { cache: "no-store" }),
     ]);
     setPlans(plansBody.plans);
     setExercises(exercisesBody.exercises);
@@ -127,6 +135,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     setWorkoutSessions(historyBody.workoutSessions);
     setSettings(settingsBody.settings);
     setDataVersion(versionBody.dataVersion);
+    setTelemetryEnabled(privacyBody.telemetryEnabled);
     setOffline(false);
     setSyncError("");
     setPendingSync(0);
@@ -155,6 +164,8 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     }, 30_000);
     return () => { window.clearInterval(timer); channel.close(); };
   }, [dataVersion, loadData]);
+
+  useEffect(() => { if (telemetryEnabled === true && !telemetryPageRecorded.current) { telemetryPageRecorded.current = true; void fetch("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ category: "page_visit" }) }).catch(() => undefined); } }, [telemetryEnabled]);
 
   useEffect(() => {
     let active = true;
@@ -200,9 +211,11 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     try {
       const result = await action();
       await loadData();
+      recordTelemetry("feature_operation");
       setNotice(successMessage);
       return result;
     } catch (error) {
+      recordTelemetry(error instanceof ApiError && error.code === "SYNC_FAILURE" ? "sync_failure" : "sanitized_error");
       if (error instanceof ApiError && (error.code === "VERSION_CONFLICT" || error.code === "SESSION_TAKEN_OVER")) {
         await loadData().catch(() => undefined);
         setConflict(error);
@@ -536,6 +549,11 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
   }
 
   async function saveSettings(nextSettings: { timeZone: string; weightUnit: "kg" | "lb" }) { await runMutation(() => apiRequest("/api/settings", { method: "PATCH", body: JSON.stringify(nextSettings) }), "设置已保存。"); }
+  async function saveTelemetryPreference(enabled: boolean) {
+    setBusy(true);
+    try { await apiRequest<{ telemetryEnabled: boolean }>("/api/privacy", { method: "PATCH", body: JSON.stringify({ telemetryEnabled: enabled }) }); setTelemetryEnabled(enabled); setNotice(enabled ? "最小遥测已开启。" : "最小遥测已关闭，不会再收集新的遥测。 "); } catch (error) { setNotice(errorText(error)); } finally { setBusy(false); }
+  }
+  async function deletionSummary() { try { return (await apiRequest<{ summary: { plans: number; workoutDays: number; plannedExercises: number; exercises: number; workoutSessions: number; sessionExercises: number; setResults: number; telemetryEvents: number } }>("/api/account", { cache: "no-store" })).summary; } catch (error) { setNotice(errorText(error)); return undefined; } }
   async function exportBackup() {
     await runMutation(async () => {
       const backup = await apiRequest<{ backup: unknown }>("/api/backup", { cache: "no-store" });
@@ -550,7 +568,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     const result = await runMutation(() => apiRequest("/api/backup/restore", { method: "POST", body: JSON.stringify({ backup, confirmation: "RESTORE" }) }), "备份已恢复，所有设备会重新加载数据。");
     if (result !== undefined) { await clearWorkoutSessionDraft(user.id); new BroadcastChannel("cwfitness-backup").postMessage("restored"); setView("today"); }
   }
-  async function deleteAccount() { const result = await runMutation(() => apiRequest("/api/account", { method: "DELETE", body: JSON.stringify({ confirmation: "DELETE" }) }), "用户已删除。"); if (result !== undefined) onAccountDeleted(); }
+  async function deleteAccount() { setBusy(true); try { await apiRequest("/api/account", { method: "DELETE", body: JSON.stringify({ confirmation: "DELETE" }) }); await clearWorkoutSessionDraft(user.id); onAccountDeleted(); } catch (error) { setNotice(errorText(error)); } finally { setBusy(false); } }
 
   async function abandonWorkout() {
     if (!session) return;
@@ -720,7 +738,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
 
               {view === "history" && <WorkoutHistory workoutSessions={workoutSessions} busy={busy} weightUnit={settings.weightUnit} onCorrectSet={correctHistoricalSet} onDeleteSession={deleteHistoricalSession} />}
               {view === "progress" && <ProgressView plans={plans} workoutSessions={workoutSessions} progress={progress} weightUnit={settings.weightUnit} />}
-              {view === "settings" && <SettingsPanel settings={settings} busy={busy} onSave={saveSettings} onDelete={deleteAccount} onExport={exportBackup} onPreviewRestore={previewRestore} onRestore={restoreBackup} />}
+              {view === "settings" && <SettingsPanel settings={settings} busy={busy} telemetryEnabled={telemetryEnabled ?? true} onSave={saveSettings} onDelete={deleteAccount} onExport={exportBackup} onPreviewRestore={previewRestore} onRestore={restoreBackup} onTelemetryPreference={saveTelemetryPreference} onPrepareDelete={deletionSummary} />}
 
               {view === "training" && session && (
                 <TrainingPanel
