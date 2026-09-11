@@ -18,14 +18,14 @@ export async function GET(request: Request) {
       version: true,
       archivedAt: true,
       workoutDays: {
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
         select: {
           id: true,
           name: true,
           suggestedWeekday: true,
           version: true,
           plannedExercises: {
-            orderBy: { createdAt: "asc" },
+            orderBy: [{ position: "asc" }, { createdAt: "asc" }],
             select: {
               id: true,
               exerciseId: true,

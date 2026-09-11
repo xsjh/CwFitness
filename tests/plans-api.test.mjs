@@ -396,6 +396,21 @@ async function getPlan(cookie, planId) {
   return plan;
 }
 
+test('Workout Day ordering is versioned and persists through plan reads', async () => {
+  const cookie = await signUp('DayOrdering');
+  const plan = await createPlan(cookie, 'Ordered Plan');
+  const first = await createWorkoutDay(cookie, plan.id, 'First');
+  const second = await createWorkoutDay(cookie, plan.id, 'Second');
+  const current = await getPlan(cookie, plan.id);
+  const response = await request(`/api/plans/${plan.id}/days/order`, {
+    method: 'PUT', headers: { cookie }, body: JSON.stringify({ dayIds: [second.id, first.id], version: current.version }),
+  });
+  assert.equal(response.status, 200);
+  const refreshed = await getPlan(cookie, plan.id);
+  assert.deepEqual(refreshed.workoutDays.map((day) => day.id), [second.id, first.id]);
+  assert.equal(refreshed.version, current.version + 1);
+});
+
 async function completeSingleSetSession(cookie, dayId, actualValue, actualWeight) {
   const started = await request('/api/workout-sessions', {
     method: 'POST', headers: { cookie }, body: JSON.stringify({ workoutDayId: dayId, timeZone: 'UTC' }),

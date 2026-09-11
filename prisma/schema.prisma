@@ -121,6 +121,7 @@ model WorkoutDay {
   name             String
   suggestedWeekday Int?
   workoutPlanId    String
+  position         Int               @default(0)
   version          Int               @default(1)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -139,6 +140,7 @@ model PlannedExercise {
   setCount     Int
   targetValue  Int
   weightGrams  Int?
+  position    Int        @default(0)
   version      Int        @default(1)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

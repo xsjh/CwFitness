@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Establish server-authoritative multi-device editing)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] A User can reorder Workout Days within a Workout Plan.
 - [ ] A User can reorder Planned Exercises within a Workout Day.
@@ -14,4 +14,3 @@
 - [ ] The accent and cover are visible on plan selection, Workout Plan detail, and Home without runtime-hotlinked media.
 - [ ] The visual treatment supports reduced motion, reduced transparency, and high contrast without hiding content.
 - [ ] Automated tests cover ordering, snapshot isolation, visual metadata validation, and responsive display.
-

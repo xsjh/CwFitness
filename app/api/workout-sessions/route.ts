@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
   const day = await prisma.workoutDay.findFirst({
     where: { id: workoutDayId, workoutPlan: { userId: session.user.id, archivedAt: null } },
-    include: { workoutPlan: true, plannedExercises: { orderBy: { createdAt: "asc" }, include: { exercise: true } } },
+    include: { workoutPlan: true, plannedExercises: { orderBy: [{ position: "asc" }, { createdAt: "asc" }], include: { exercise: true } } },
   });
   if (!day) return Response.json({ error: "Workout Day not found" }, { status: 404 });
   if (day.plannedExercises.length === 0) return Response.json({ error: "Workout Day has no Planned Exercises" }, { status: 409 });
