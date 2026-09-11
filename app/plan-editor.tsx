@@ -99,13 +99,14 @@ export function PlanEditor(props: PlanEditorProps) {
     if (!selectedPlan || !selectedDay) return;
     const form = event.currentTarget;
     const data = new FormData(form);
-    const weightValue = String(data.get("weight"));
+    const rawWeight = data.get("weight");
+    const hasWeight = typeof rawWeight === "string" && rawWeight.trim() !== "";
     await onAddPlannedExercise(selectedPlan, selectedDay, {
       exerciseId: selectedExerciseId,
       setCount: Number(data.get("setCount")),
       targetValue: Number(data.get("targetValue")),
-      weight: weightValue ? Number(weightValue) : undefined,
-      weightUnit: weightValue ? weightUnit : undefined,
+      weight: hasWeight ? Number(rawWeight) : undefined,
+      weightUnit: hasWeight ? weightUnit : undefined,
     });
     form.reset();
     setSelectedExerciseId("");
