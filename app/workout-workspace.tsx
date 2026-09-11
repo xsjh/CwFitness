@@ -233,10 +233,10 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     }
   }
 
-  async function mutateSession(mutation: NewSessionMutation, successMessage: string) {
+  async function mutateSession(mutation: NewSessionMutation, successMessage: string, options: { quiet?: boolean } = {}) {
     if (!session) return;
     setBusy(true);
-    setNotice("已保存在本机，等待同步。");
+    if (!options.quiet) setNotice("已保存在本机，等待同步。");
     setSyncError("");
     try {
       const nextSession = applySessionMutation(session, mutation);
@@ -249,18 +249,18 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
         const replay = await syncPendingMutations();
         if (replay.ok) {
           await loadData();
-          setNotice(successMessage);
+          if (!options.quiet) setNotice(successMessage);
         } else {
           setPendingSync(replay.remaining.length);
           setSyncError(errorText(replay.error));
           if (replay.error instanceof ApiError && (replay.error.code === "VERSION_CONFLICT" || replay.error.code === "SESSION_TAKEN_OVER")) {
             setConflict(replay.error);
           }
-          setNotice("同步没有完成，已保留本地记录。修复连接或冲突后可重试。");
+          if (!options.quiet) setNotice("同步没有完成，已保留本地记录。修复连接或冲突后可重试。");
         }
       }
     } catch (error) {
-      setNotice(errorText(error));
+      if (!options.quiet) setNotice(errorText(error));
     } finally {
       setBusy(false);
     }
@@ -441,6 +441,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
         request: { method: "PUT", path, body: versionedBody },
       },
       input === null ? `第 ${setIndex} 组已跳过。` : `第 ${setIndex} 组已记录。`,
+      { quiet: true },
     );
   }
 
@@ -645,10 +646,10 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
         </header>
 
         {notice && <p className={`workspace-notice ${notice.includes("失败") ? "error" : ""}`} role="status">{notice}</p>}
-        {pendingSync > 0 && <p className="workspace-notice recovery" role="status">{pendingSync} 项训练记录正在等待同步。</p>}
+        {pendingSync > 0 && !syncError && <p className="workspace-notice recovery" role="status">{pendingSync} 项训练记录正在等待同步。</p>}
         {syncError && (
           <div className="workspace-notice error" role="alert">
-            <span>{syncError}</span>
+            <span>{pendingSync > 0 ? `${pendingSync} 项训练记录等待同步：${syncError}` : syncError}</span>
             <button className="text-button" type="button" onClick={() => void loadData()}>重试同步</button>
           </div>
         )}
