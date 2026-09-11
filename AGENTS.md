@@ -17,6 +17,10 @@ The default five-label triage vocabulary is used. See `docs/agents/triage-labels
 
 Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
 
+### Unit tests
+
+A skill at `.workbuddy/skills/unit-test/SKILL.md` owns adding unit tests to code that already exists, running the unit layer, and writing the report to `docs/testing-reports/`. Load it when the work is 补单测 / 跑单测 / 测试报告 / 提覆盖率, or when the unit layer needs to be green before a delivery. Test-first work on behavior that does not exist yet belongs to the `tdd` skill instead.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
