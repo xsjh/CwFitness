@@ -22,6 +22,7 @@ type PlanEditorProps = {
   onSelectPlan: (planId: string) => void;
   onCreatePlan: (name: string) => Promise<void>;
   onRenamePlan: (plan: Plan, name: string) => Promise<void>;
+  onUpdatePlanVisual: (plan: Plan, accentColor: string, coverKey: string) => Promise<void>;
   onSetArchived: (plan: Plan, archived: boolean) => Promise<void>;
   onCreateDay: (plan: Plan, name: string, suggestedWeekday: number | null) => Promise<void>;
   onUpdateDay: (plan: Plan, day: WorkoutDay, name: string, suggestedWeekday: number | null) => Promise<void>;
@@ -56,6 +57,7 @@ export function PlanEditor(props: PlanEditorProps) {
     onSelectPlan,
     onCreatePlan,
     onRenamePlan,
+    onUpdatePlanVisual,
     onSetArchived,
     onCreateDay,
     onUpdateDay,
@@ -131,6 +133,7 @@ export function PlanEditor(props: PlanEditorProps) {
             {plans.map((plan) => (
               <button
                 className="plan-index-item"
+                style={{ borderLeftColor: plan.accentColor === "ocean" ? "#7db7d6" : plan.accentColor === "clay" ? "#c58d78" : plan.accentColor === "slate" ? "#9aa4b0" : "#c2db86" }}
                 type="button"
                 key={plan.id}
                 aria-current={plan.id === selectedPlan?.id ? "page" : undefined}
@@ -146,7 +149,7 @@ export function PlanEditor(props: PlanEditorProps) {
           </aside>
 
           {selectedPlan && (
-            <div className="plan-detail">
+            <div className={`plan-detail plan-cover-${selectedPlan.coverKey}`}>
               <div className="plan-title-row">
                 <div>
                   <p className="section-kicker">当前计划</p>
@@ -167,6 +170,11 @@ export function PlanEditor(props: PlanEditorProps) {
                 </details>
                 <button className="action-button quiet" type="button" disabled={busy} onClick={() => onSetArchived(selectedPlan, selectedPlan.archivedAt === null)}>{selectedPlan.archivedAt === null ? "归档计划" : "恢复计划"}</button>
               </div>
+              <form className="inline-create-form compact" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void onUpdatePlanVisual(selectedPlan, String(data.get("accentColor")), String(data.get("coverKey"))); }}>
+                <label><span>主题色</span><select name="accentColor" defaultValue={selectedPlan.accentColor}><option value="sage">鼠尾草</option><option value="slate">石板</option><option value="clay">陶土</option><option value="ocean">海洋</option></select></label>
+                <label><span>封面</span><select name="coverKey" defaultValue={selectedPlan.coverKey}><option value="strength">力量</option><option value="endurance">耐力</option><option value="mobility">灵活</option><option value="balance">平衡</option></select></label>
+                <button className="action-button" type="submit" disabled={busy}>保存视觉</button>
+              </form>
 
               <form className="inline-create-form compact" onSubmit={submitDay}>
                 <label>

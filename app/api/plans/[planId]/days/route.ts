@@ -26,7 +26,7 @@ export async function POST(request: Request, context: RouteContext<"/api/plans/[
     });
     if (lockedPlan.count === 0) return null;
     return tx.workoutDay.create({
-      data: { name, suggestedWeekday: suggestedWeekday as number | null, workoutPlanId: plan.id },
+      data: { name, suggestedWeekday: suggestedWeekday as number | null, workoutPlanId: plan.id, position: await tx.workoutDay.count({ where: { workoutPlanId: plan.id } }) },
       select: { id: true, name: true, suggestedWeekday: true, version: true },
     });
   });

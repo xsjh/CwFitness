@@ -81,6 +81,8 @@ model WorkoutPlan {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   archivedAt      DateTime?
+  accentColor     String           @default("sage")
+  coverKey        String           @default("strength")
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   workoutDays     WorkoutDay[]
   workoutSessions WorkoutSession[]

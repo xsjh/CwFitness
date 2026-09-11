@@ -63,6 +63,7 @@ export async function POST(
         setCount: Number(setCount),
         targetValue: Number(targetValue),
         weightGrams,
+        position: await tx.plannedExercise.count({ where: { workoutDayId: workoutDay.id } }),
       },
       select: { id: true, exerciseId: true, setCount: true, targetValue: true, weightGrams: true, version: true },
     });

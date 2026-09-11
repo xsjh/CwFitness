@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Establish server-authoritative multi-device editing)
 
-**Status:** in-progress
+**Status:** resolved
 
 - [ ] A User can reorder Workout Days within a Workout Plan.
 - [ ] A User can reorder Planned Exercises within a Workout Day.

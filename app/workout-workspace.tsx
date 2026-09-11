@@ -248,6 +248,10 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     );
   }
 
+  async function updatePlanVisual(plan: Plan, accentColor: string, coverKey: string) {
+    await runMutation(() => apiRequest(`/api/plans/${plan.id}`, { method: "PATCH", body: JSON.stringify({ accentColor, coverKey, version: plan.version }) }), "计划视觉已更新。");
+  }
+
   async function createDay(plan: Plan, name: string, suggestedWeekday: number | null) {
     await runMutation(
       () => apiRequest(`/api/plans/${plan.id}/days`, {
@@ -659,6 +663,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
                   onSelectPlan={setSelectedPlanId}
                   onCreatePlan={createPlan}
                   onRenamePlan={renamePlan}
+                  onUpdatePlanVisual={updatePlanVisual}
                   onSetArchived={setPlanArchived}
                   onCreateDay={createDay}
                   onUpdateDay={updateDay}

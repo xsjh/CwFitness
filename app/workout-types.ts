@@ -16,6 +16,7 @@ export type PlannedExercise = {
   targetValue: number;
   weightGrams: number | null;
   version: number;
+  position: number;
   exercise: Exercise;
 };
 
@@ -24,6 +25,7 @@ export type WorkoutDay = {
   name: string;
   suggestedWeekday: number | null;
   version: number;
+  position: number;
   plannedExercises: PlannedExercise[];
 };
 
@@ -32,6 +34,8 @@ export type Plan = {
   name: string;
   version: number;
   archivedAt: string | null;
+  accentColor: string;
+  coverKey: string;
   workoutDays: WorkoutDay[];
 };
 
