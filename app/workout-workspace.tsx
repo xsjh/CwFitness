@@ -426,6 +426,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
         exercise: {
           id: clientId,
           exerciseId: exercise.id,
+          plannedExerciseId: null,
           exerciseName: exercise.name,
           resistanceType: exercise.resistanceType,
           targetType: exercise.targetType,
@@ -557,6 +558,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
   const canEditSession = session?.editingDeviceId === deviceId;
   const todayDate = new Date().toLocaleDateString("en-CA", { timeZone: settings.timeZone });
   const todayTrainingSeconds = dailyTrainingTime(workoutSessions, todayDate);
+  const suggestion = progress.find((item) => item.suggestion)?.suggestion;
 
   return (
     <main className="workspace-shell">
@@ -640,6 +642,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
                       <div><span>训练日</span><strong>{allDays.length}</strong></div>
                       <div><span>今日训练时间</span><strong>{Math.floor(todayTrainingSeconds / 60)} 分</strong></div>
                       <div><span>最近完成</span><strong>{workoutSessions[0]?.localStartDate ?? "—"}</strong></div>
+                      {suggestion && <div><span>进阶建议</span><strong>{suggestion}</strong></div>}
                     </div>
                   </div>
                 </section>
@@ -678,7 +681,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
               )}
 
               {view === "history" && <WorkoutHistory workoutSessions={workoutSessions} busy={busy} weightUnit={settings.weightUnit} onCorrectSet={correctHistoricalSet} onDeleteSession={deleteHistoricalSession} />}
-              {view === "progress" && <ProgressView plans={plans} workoutSessions={workoutSessions} weightUnit={settings.weightUnit} />}
+              {view === "progress" && <ProgressView plans={plans} workoutSessions={workoutSessions} progress={progress} weightUnit={settings.weightUnit} />}
               {view === "settings" && <SettingsPanel settings={settings} busy={busy} onSave={saveSettings} onDelete={deleteAccount} />}
 
               {view === "training" && session && (

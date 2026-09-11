@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { weightFromGrams } from "../lib/weights";
-import type { Plan, WorkoutHistorySession } from "./workout-types";
+import type { ExerciseProgress, Plan, WorkoutHistorySession } from "./workout-types";
 
 type Range = "12" | "4w" | "12w" | "all";
 
@@ -52,9 +52,9 @@ function calendarDays(now: Date) {
   return Array.from({ length: 28 }, (_, index) => dateDaysAgo(now, 27 - index));
 }
 
-type ProgressViewProps = { plans: Plan[]; workoutSessions: WorkoutHistorySession[]; weightUnit: "kg" | "lb" };
+type ProgressViewProps = { plans: Plan[]; workoutSessions: WorkoutHistorySession[]; progress: ExerciseProgress[]; weightUnit: "kg" | "lb" };
 
-export function ProgressView({ plans, workoutSessions, weightUnit }: ProgressViewProps) {
+export function ProgressView({ plans, workoutSessions, progress, weightUnit }: ProgressViewProps) {
   const [range, setRange] = useState<Range>("12");
   const [selectedPlanId, setSelectedPlanId] = useState(plans[0]?.id ?? "");
   const [selectedExerciseId, setSelectedExerciseId] = useState("");
@@ -75,6 +75,7 @@ export function ProgressView({ plans, workoutSessions, weightUnit }: ProgressVie
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
   const visiblePoints = filterTrend(points, range);
+  const suggestion = progress.find((item) => item.workoutPlanId === plan?.id && item.exerciseId === exerciseId && item.suggestion)?.suggestion;
   const days = completedDays(workoutSessions);
   const recent = workoutSessions.slice(0, 5);
   const dailyTimes = dailyTrainingTimes(workoutSessions);
@@ -94,6 +95,7 @@ export function ProgressView({ plans, workoutSessions, weightUnit }: ProgressVie
     <article className="progress-card daily-time-card"><h2>每日训练时间</h2>{dailyTimes.length === 0 ? <p className="empty-state">最近四周尚无已完成训练。</p> : <div className="daily-duration">{dailyTimes.map((item) => <div key={item.date}><span>{item.date}</span><strong>{duration(item.seconds)}</strong></div>)}</div>}</article>
     <section className="trend-panel" aria-labelledby="trend-title"><div className="trend-controls"><div><p className="section-kicker">动作趋势</p><h2 id="trend-title">单个动作表现</h2></div><label>训练计划<select value={plan?.id ?? ""} onChange={(event) => { setSelectedPlanId(event.target.value); setSelectedExerciseId(""); }}>{plans.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>动作<select value={exerciseId ?? ""} onChange={(event) => setSelectedExerciseId(event.target.value)}>{exercises.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label></div>
       <div className="range-controls" aria-label="趋势范围">{(["12", "4w", "12w", "all"] as const).map((item) => <button type="button" key={item} aria-pressed={range === item} onClick={() => setRange(item)}>{item === "12" ? "最近 12 次" : item === "all" ? "全部" : `最近 ${item.slice(0, -1)} 周`}</button>)}</div>
+      {suggestion && <p className="progress-copy">{suggestion}</p>}
       {visiblePoints.length === 0 ? <p className="empty-state">这个计划中的动作完成训练后会形成趋势。</p> : <ol className="trend-list">{visiblePoints.map((point, index) => <li key={`${point.date}-${index}`}><span>{point.date}</span><strong>{point.value}{planSessions.flatMap((session) => session.exercises).find((exercise) => exercise.exerciseId === exerciseId)?.targetType === "DURATION" ? " 秒" : " 次"}</strong><span>{point.weightGrams === null ? "自重" : `${weightFromGrams(point.weightGrams, weightUnit).toFixed(1)} ${weightUnit}`}</span><span>达成 {point.achievementRate}%</span></li>)}</ol>}
     </section>
     <section className="plan-progress" aria-label="计划完成概览">{plans.map((item) => { const sessions = workoutSessions.filter((session) => session.workoutPlanId === item.id); return <article key={item.id}><strong>{item.name}</strong><span>{sessions.length} 场已完成</span><span>最近：{sessions[0] ? `${sessions[0].localStartDate} · ${duration(sessions[0].trainingTimeSeconds)}` : "—"}</span></article>; })}</section>

@@ -396,6 +396,78 @@ async function getPlan(cookie, planId) {
   return plan;
 }
 
+async function completeSingleSetSession(cookie, dayId, actualValue, actualWeight) {
+  const started = await request('/api/workout-sessions', {
+    method: 'POST', headers: { cookie }, body: JSON.stringify({ workoutDayId: dayId, timeZone: 'UTC' }),
+  });
+  assert.equal(started.status, 201);
+  const session = (await started.json()).workoutSession;
+  const recorded = await request(`/api/workout-sessions/${session.id}/exercises/${session.exercises[0].id}/sets/1`, {
+    method: 'PUT', headers: { cookie }, body: JSON.stringify({ actualValue, actualWeight, weightUnit: 'kg', version: session.version }),
+  });
+  assert.equal(recorded.status, 200);
+  const active = await request('/api/workout-sessions/active', { headers: { cookie } });
+  assert.equal(active.status, 200);
+  const updated = (await active.json()).workoutSession;
+  const completed = await request(`/api/workout-sessions/${session.id}/complete`, {
+    method: 'POST', headers: { cookie }, body: JSON.stringify({ version: updated.version }),
+  });
+  assert.equal(completed.status, 200);
+}
+
+test('Progression Suggestions reset when a Planned Exercise target changes and later changes back', async () => {
+  const cookie = await signUp('SuggestionReset');
+  const plan = await createPlan(cookie, 'Suggestion Plan');
+  const day = await createWorkoutDay(cookie, plan.id, 'Strength Day');
+  const exercise = await createExercise(cookie, { name: 'Bench Press', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' });
+  await addPlannedExercise(cookie, plan.id, day.id, { exerciseId: exercise.id, setCount: 1, targetValue: 6, weight: 100, weightUnit: 'kg' });
+
+  await completeSingleSetSession(cookie, day.id, 7, 110);
+  let current = await getPlan(cookie, plan.id);
+  let planned = current.workoutDays[0].plannedExercises[0];
+  let changed = await request(`/api/plans/${plan.id}/days/${day.id}/exercises/${planned.id}`, {
+    method: 'PATCH', headers: { cookie }, body: JSON.stringify({ setCount: 1, targetValue: 7, weight: 100, weightUnit: 'kg', version: planned.version }),
+  });
+  assert.equal(changed.status, 200);
+  await completeSingleSetSession(cookie, day.id, 8, 110);
+  current = await getPlan(cookie, plan.id);
+  planned = current.workoutDays[0].plannedExercises[0];
+  changed = await request(`/api/plans/${plan.id}/days/${day.id}/exercises/${planned.id}`, {
+    method: 'PATCH', headers: { cookie }, body: JSON.stringify({ setCount: 1, targetValue: 6, weight: 100, weightUnit: 'kg', version: planned.version }),
+  });
+  assert.equal(changed.status, 200);
+  await completeSingleSetSession(cookie, day.id, 7, 110);
+  await completeSingleSetSession(cookie, day.id, 7, 110);
+
+  const progress = await request(`/api/plans/${plan.id}/progress`, { headers: { cookie } });
+  assert.equal(progress.status, 200);
+  assert.equal((await progress.json()).progress[0].progressionSuggestion, false);
+});
+
+test('Progression Suggestions name the correct next step for each Exercise type after two excess sessions', async () => {
+  const cookie = await signUp('SuggestionTypes');
+  const plan = await createPlan(cookie, 'Suggestion Types');
+  const cases = [
+    { name: 'Weighted Reps', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS', suggestion: '建议增加重量', weight: 100 },
+    { name: 'Bodyweight Reps', resistanceType: 'BODYWEIGHT', targetType: 'REPETITIONS', suggestion: '建议增加次数' },
+    { name: 'Bodyweight Duration', resistanceType: 'BODYWEIGHT', targetType: 'DURATION', suggestion: '建议增加时长' },
+    { name: 'Weighted Duration', resistanceType: 'WEIGHTED', targetType: 'DURATION', suggestion: '建议增加重量或时长', weight: 20 },
+  ];
+
+  for (const item of cases) {
+    const day = await createWorkoutDay(cookie, plan.id, item.name);
+    const exercise = await createExercise(cookie, item);
+    await addPlannedExercise(cookie, plan.id, day.id, { exerciseId: exercise.id, setCount: 1, targetValue: 6, ...(item.weight === undefined ? {} : { weight: item.weight, weightUnit: 'kg' }) });
+    await completeSingleSetSession(cookie, day.id, 6, item.weight);
+    await completeSingleSetSession(cookie, day.id, 7, item.weight === undefined ? undefined : item.weight + 1);
+    await completeSingleSetSession(cookie, day.id, 7, item.weight === undefined ? undefined : item.weight + 1);
+  }
+
+  const progress = await request(`/api/plans/${plan.id}/progress`, { headers: { cookie } });
+  assert.equal(progress.status, 200);
+  assert.deepEqual((await progress.json()).progress.map((item) => item.suggestion).sort(), cases.map((item) => item.suggestion).sort());
+});
+
 test('User starts one snapshotted Workout Session and completes its timed lifecycle', async () => {
   const cookie = await signUp('SessionOwner');
   const otherCookie = await signUp('SessionOther');
@@ -404,7 +476,7 @@ test('User starts one snapshotted Workout Session and completes its timed lifecy
   const exercise = await createExercise(cookie, {
     name: 'Back Squat', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS',
   });
-  await addPlannedExercise(cookie, plan.id, day.id, {
+  const planned = await addPlannedExercise(cookie, plan.id, day.id, {
     exerciseId: exercise.id, setCount: 4, targetValue: 6, weight: 100, weightUnit: 'kg',
   });
 
@@ -497,7 +569,8 @@ test('User starts one snapshotted Workout Session and completes its timed lifecy
   const progress = await request(`/api/plans/${plan.id}/progress`, { headers: { cookie } });
   assert.equal(progress.status, 200);
   assert.deepEqual((await progress.json()).progress, [{
-    key: `${exercise.id}:4:6:100000`,
+    workoutPlanId: plan.id,
+    plannedExerciseId: planned.id,
     exerciseId: exercise.id,
     recent: [{
       date: session.localStartDate,
@@ -509,6 +582,7 @@ test('User starts one snapshotted Workout Session and completes its timed lifecy
       excessWeightGrams: 0,
     }],
     progressionSuggestion: false,
+    suggestion: null,
   }]);
 
   const renamed = await request(`/api/exercises/${exercise.id}`, {

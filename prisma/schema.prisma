@@ -144,6 +144,7 @@ model PlannedExercise {
   updatedAt    DateTime   @updatedAt
   workoutDay   WorkoutDay @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
   exercise     Exercise   @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sessionExercises SessionExercise[]
 
   @@unique([workoutDayId, exerciseId])
   @@index([exerciseId])
@@ -206,14 +207,17 @@ model SessionExercise {
   weightGrams      Int?
   position         Int                   @default(0)
   source           SessionExerciseSource @default(PLANNED)
+  plannedExerciseId String?
   removedAt        DateTime?
   createdAt        DateTime              @default(now())
   workoutSession   WorkoutSession        @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
   exercise         Exercise              @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  plannedExercise  PlannedExercise?      @relation(fields: [plannedExerciseId], references: [id], onDelete: SetNull)
   setResults       SessionSetResult[]
 
   @@index([workoutSessionId])
   @@index([exerciseId])
+  @@index([plannedExerciseId])
   @@map("session_exercise")
 }
 

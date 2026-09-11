@@ -70,7 +70,7 @@ export function PlanEditor(props: PlanEditorProps) {
   const selectedDay = selectedPlan?.workoutDays.find((day) => day.id === selectedDayId)
     ?? selectedPlan?.workoutDays[0]
     ?? null;
-  const progressFor = (planned: PlannedExercise) => progress.find((item) => item.key === [planned.exerciseId, planned.setCount, planned.targetValue, planned.weightGrams].join(":"));
+  const progressFor = (planned: PlannedExercise) => progress.find((item) => item.plannedExerciseId === planned.id);
 
   async function submitPlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -272,7 +272,7 @@ export function PlanEditor(props: PlanEditorProps) {
                             <div className="row-copy">
                               <h4>{planned.exercise.name}</h4>
                               <p>{plannedTarget(planned, weightUnit)}</p>
-                              {progressFor(planned) && <p className="progress-copy">近 {progressFor(planned)?.recent.map((item) => `${item.date.slice(5)} ${item.achievementRate}%`).join(" · ")}{progressFor(planned)?.progressionSuggestion ? ` · 已连续达标，建议${progressFor(planned)?.recent.some((item) => item.excessWeightGrams > 0) ? "增加重量" : planned.exercise.targetType === "DURATION" ? "增加秒数" : "增加次数"}` : ""}</p>}
+                              {progressFor(planned) && <p className="progress-copy">近 {progressFor(planned)?.recent.map((item) => `${item.date.slice(5)} ${item.achievementRate}%`).join(" · ")}{progressFor(planned)?.suggestion ? ` · ${progressFor(planned)?.suggestion}` : ""}</p>}
                             </div>
                             <div className="row-actions">
                               <details className="inline-editor">

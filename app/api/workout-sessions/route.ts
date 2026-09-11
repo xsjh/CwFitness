@@ -68,6 +68,7 @@ export async function POST(request: Request) {
         editingDeviceId: session.session.id,
         exercises: { create: day.plannedExercises.map((planned, position) => ({
           exerciseId: planned.exerciseId,
+          plannedExerciseId: planned.id,
           exerciseName: planned.exercise.name,
           resistanceType: planned.exercise.resistanceType,
           targetType: planned.exercise.targetType,

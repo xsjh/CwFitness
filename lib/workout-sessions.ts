@@ -18,6 +18,7 @@ export const workoutSessionSelect = {
     select: {
       id: true,
       exerciseId: true,
+      plannedExerciseId: true,
       exerciseName: true,
       resistanceType: true,
       targetType: true,

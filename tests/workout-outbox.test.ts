@@ -29,6 +29,7 @@ function sessionFixture(): WorkoutSession {
       {
         id: "session-exercise-1",
         exerciseId: "exercise-1",
+        plannedExerciseId: null,
         exerciseName: "Squat",
         resistanceType: "WEIGHTED",
         targetType: "REPETITIONS",
@@ -43,6 +44,7 @@ function sessionFixture(): WorkoutSession {
       {
         id: "session-exercise-2",
         exerciseId: "exercise-2",
+        plannedExerciseId: null,
         exerciseName: "Plank",
         resistanceType: "BODYWEIGHT",
         targetType: "DURATION",
@@ -108,6 +110,7 @@ describe("workout session outbox", () => {
       exercise: {
         id: "local-exercise",
         exerciseId: "exercise-3",
+        plannedExerciseId: null,
         exerciseName: "Row",
         resistanceType: "BODYWEIGHT",
         targetType: "REPETITIONS",
