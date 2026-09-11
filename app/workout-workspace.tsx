@@ -24,7 +24,7 @@ type WorkoutWorkspaceProps = {
   user: { id: string; name: string; email: string };
   deviceId: string;
   onSignOut: () => Promise<void>;
-  onAuthenticationLost: () => void;
+  onAuthenticationLost: () => Promise<boolean>;
   onAccountDeleted: () => void;
 };
 
@@ -116,7 +116,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
       const replay = await syncPendingMutations();
       if (!replay.ok) {
         if (replay.error instanceof ApiError && replay.error.status === 401) {
-          onAuthenticationLost();
+          await onAuthenticationLost();
           return;
         }
         await restoreDraft();
@@ -125,15 +125,15 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
       }
     }
 
-    const [plansBody, exercisesBody, sessionBody, historyBody, settingsBody, versionBody, privacyBody] = await Promise.all([
-      apiRequest<{ plans: Plan[] }>("/api/plans", { cache: "no-store" }),
-      apiRequest<{ exercises: Exercise[] }>("/api/exercises", { cache: "no-store" }),
-      apiRequest<{ workoutSession: WorkoutSession | null }>("/api/workout-sessions/active", { cache: "no-store" }),
-      apiRequest<{ workoutSessions: WorkoutHistorySession[] }>("/api/workout-sessions", { cache: "no-store" }),
-      apiRequest<{ settings: { timeZone: string; weightUnit: "kg" | "lb" } }>("/api/settings", { cache: "no-store" }),
-      apiRequest<{ dataVersion: number }>("/api/backup/version", { cache: "no-store" }),
-      apiRequest<{ telemetryEnabled: boolean }>("/api/privacy", { cache: "no-store" }),
-    ]);
+    // Each route verifies the same session. Keep these reads serialized because the local
+    // PostgreSQL adapter can invalidate concurrent prepared statements during dev reloads.
+    const plansBody = await apiRequest<{ plans: Plan[] }>("/api/plans", { cache: "no-store" });
+    const exercisesBody = await apiRequest<{ exercises: Exercise[] }>("/api/exercises", { cache: "no-store" });
+    const sessionBody = await apiRequest<{ workoutSession: WorkoutSession | null }>("/api/workout-sessions/active", { cache: "no-store" });
+    const historyBody = await apiRequest<{ workoutSessions: WorkoutHistorySession[] }>("/api/workout-sessions", { cache: "no-store" });
+    const settingsBody = await apiRequest<{ settings: { timeZone: string; weightUnit: "kg" | "lb" } }>("/api/settings", { cache: "no-store" });
+    const versionBody = await apiRequest<{ dataVersion: number }>("/api/backup/version", { cache: "no-store" });
+    const privacyBody = await apiRequest<{ telemetryEnabled: boolean }>("/api/privacy", { cache: "no-store" });
     setPlans(plansBody.plans);
     setExercises(exercisesBody.exercises);
     setSession(sessionBody.workoutSession);
@@ -155,21 +155,36 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
       await clearWorkoutSessionDraft(user.id);
     }
     setSelectedPlanId((current) => current || plansBody.plans[0]?.id || "");
-    const progressBodies = await Promise.all(plansBody.plans.map((plan) => apiRequest<{ progress: ExerciseProgress[] }>(`/api/plans/${plan.id}/progress`, { cache: "no-store" })));
+    const progressBodies: { progress: ExerciseProgress[] }[] = [];
+    for (const plan of plansBody.plans) {
+      progressBodies.push(await apiRequest<{ progress: ExerciseProgress[] }>(`/api/plans/${plan.id}/progress`, { cache: "no-store" }));
+    }
     setProgress(progressBodies.flatMap((body) => body.progress));
   }, [onAuthenticationLost, restoreDraft, syncPendingMutations, user.id]);
 
-  const handleBackgroundError = useCallback((error: unknown) => {
-    if (error instanceof ApiError && error.status === 401) onAuthenticationLost();
-    else setNotice(errorText(error));
-  }, [onAuthenticationLost]);
+  const handleBackgroundError = useCallback(async (error: unknown) => {
+    if (!(error instanceof ApiError) || error.status !== 401) {
+      setNotice(errorText(error));
+      return;
+    }
+
+    if (!(await onAuthenticationLost())) return;
+
+    try {
+      await loadData();
+    } catch (retryError) {
+      setNotice(retryError instanceof ApiError && retryError.status === 401
+        ? "登录状态暂时不可用，请稍后重试。"
+        : errorText(retryError));
+    }
+  }, [loadData, onAuthenticationLost]);
 
   const refreshData = useCallback(async (successNotice?: string) => {
     try {
       await loadData();
       if (successNotice) setNotice(successNotice);
     } catch (error) {
-      handleBackgroundError(error);
+      await handleBackgroundError(error);
     }
   }, [handleBackgroundError, loadData]);
 
@@ -266,7 +281,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
           if (!options.quiet) setNotice(successMessage);
         } else {
           if (replay.error instanceof ApiError && replay.error.status === 401) {
-            onAuthenticationLost();
+            await onAuthenticationLost();
             return;
           }
           setPendingSync(replay.remaining.length);

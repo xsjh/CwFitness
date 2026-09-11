@@ -22,14 +22,25 @@ export function AuthExperience() {
   const [messageTone, setMessageTone] = useState<"error" | "success">("error");
   const clearUser = useCallback(() => setUser(null), []);
 
-  async function loadSession() {
-    const response = await fetch("/api/auth/get-session?disableCookieCache=true", { cache: "no-store" });
-    const session = (await response.json()) as { user?: User; session?: { id: string } } | null;
-    if (!session?.user) return false;
-    setUser(session.user);
-    setDeviceId(session.session?.id ?? "");
-    return true;
-  }
+  const loadSession = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/get-session?disableCookieCache=true", { cache: "no-store" });
+      if (!response.ok) return false;
+      const session = (await response.json()) as { user?: User; session?: { id: string } } | null;
+      if (!session?.user) return false;
+      setUser(session.user);
+      setDeviceId(session.session?.id ?? "");
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const confirmAuthenticationLoss = useCallback(async () => {
+    const sessionIsValid = await loadSession();
+    if (!sessionIsValid) clearUser();
+    return sessionIsValid;
+  }, [clearUser, loadSession]);
 
   useEffect(() => {
     let active = true;
@@ -41,7 +52,7 @@ export function AuthExperience() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadSession]);
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -105,7 +116,7 @@ export function AuthExperience() {
     setBusy(false);
   }
 
-  if (user) return <WorkoutWorkspace user={user} deviceId={deviceId} onSignOut={signOut} onAuthenticationLost={clearUser} onAccountDeleted={clearUser} />;
+  if (user) return <WorkoutWorkspace user={user} deviceId={deviceId} onSignOut={signOut} onAuthenticationLost={confirmAuthenticationLoss} onAccountDeleted={clearUser} />;
 
   return (
     <AuthShell>
