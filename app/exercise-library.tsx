@@ -81,9 +81,10 @@ export function ExerciseLibrary({ exercises, busy, onCreate, onRename, onDelete 
                 <summary>改名</summary>
                 <form onSubmit={async (event) => {
                   event.preventDefault();
-                  const name = String(new FormData(event.currentTarget).get("name"));
+                  const form = event.currentTarget;
+                  const name = String(new FormData(form).get("name"));
                   await onRename(exercise, name);
-                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  form.closest("details")?.removeAttribute("open");
                 }}>
                   <label>
                     <span>新名称</span>
