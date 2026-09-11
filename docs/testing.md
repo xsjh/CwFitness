@@ -8,6 +8,8 @@ npm.cmd test
 
 The command runs domain unit tests, component tests, IndexedDB state tests, HTTP integration tests, and a Chrome browser smoke test. The integration runner uses a dedicated `cwfitness-test` Prisma local database on isolated ports. It starts that database, applies pending migrations, and stops the server after the run.
 
+The runner refuses to start when `http://127.0.0.1:3100` is already serving a Next.js instance, and it kills the whole `next dev` process tree when it finishes. A leftover dev server would otherwise silently receive the test traffic, which shows up as unrelated failures such as missing password-reset emails.
+
 Individual layers can be run with `npm.cmd run test:unit` or `npm.cmd run test:integration`.
 
 `npm.cmd run test:coverage` runs the unit layer with V8 coverage over `lib/` and `app/`. Coverage counts only what vitest executes; the HTTP integration runner exercises `app/api/` against a live server and is invisible to it.

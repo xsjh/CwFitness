@@ -9,6 +9,10 @@ const testServerName = 'cwfitness-test';
 const databaseUrl = 'postgres://postgres:postgres@127.0.0.1:51214/template1?sslmode=disable';
 const baseUrl = 'http://127.0.0.1:3100';
 const localEmailOutbox = join(tmpdir(), 'cwfitness-local-email-outbox.jsonl');
+// npm sanitizes some Windows path variables when the runner is launched from a
+// POSIX shell, which leaves Playwright unable to locate system browsers. Restore
+// sensible fallbacks so `npm test` can launch Chrome on any drive layout.
+const systemDrive = process.env.SystemDrive ?? 'C:';
 const env = {
   ...process.env,
   DATABASE_URL: databaseUrl,
@@ -19,6 +23,8 @@ const env = {
   LOCAL_EMAIL_OUTBOX: localEmailOutbox,
   EMAIL_VERIFICATION_REQUIRED: 'false',
   PASSWORD_RESET_EXPIRES_IN_SECONDS: '2',
+  HOMEDRIVE: process.env.HOMEDRIVE ?? systemDrive,
+  PROGRAMFILES: process.env.PROGRAMFILES ?? `${systemDrive}\\Program Files`,
 };
 
 function run(command, args, options = {}) {
@@ -39,6 +45,17 @@ function run(command, args, options = {}) {
 
 async function stopServer(child) {
   if (child.exitCode !== null || child.signalCode !== null) return;
+  // `next dev` re-execs its real HTTP listener as a grandchild process. Killing only the
+  // direct child on Windows leaves that grandchild listening on the test port, and every
+  // later run then silently talks to the stale server. Kill the whole tree instead.
+  if (process.platform === 'win32') {
+    await new Promise((resolve) => {
+      const killer = spawn('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore' });
+      killer.once('error', resolve);
+      killer.once('exit', resolve);
+    });
+    return;
+  }
   child.kill();
   await Promise.race([
     new Promise((resolve) => child.once('exit', resolve)),
@@ -47,11 +64,26 @@ async function stopServer(child) {
   if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
 }
 
-async function waitForServer() {
+async function assertPortFree() {
+  try {
+    await fetch(`${baseUrl}/api/plans`, { signal: AbortSignal.timeout(1_000) });
+  } catch {
+    return;
+  }
+  throw new Error(
+    `${baseUrl} is already serving a Next.js instance. Stop it before running the integration tests, `
+    + 'otherwise the suite silently runs against the stale server.',
+  );
+}
+
+async function waitForServer(serverProcess) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
+    if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+      throw new Error('Next.js test server exited before it became ready (is the test port already in use?)');
+    }
     try {
-      const response = await fetch(`${baseUrl}/api/plans`);
+      const response = await fetch(`${baseUrl}/api/plans`, { signal: AbortSignal.timeout(2_000) });
       if (response.status === 401) return;
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -73,12 +105,13 @@ try {
   databaseStarted = true;
   await run(node, [prismaCli, 'migrate', 'deploy']);
 
+  await assertPortFree();
   server = spawn(node, [nextCli, 'dev', '-H', '127.0.0.1', '-p', '3100'], {
     cwd: root,
     env,
     stdio: 'inherit',
   });
-  await waitForServer();
+  await waitForServer(server);
   await run(node, ['--test', 'tests/plans-api.test.mjs']);
   await run(node, [playwrightCli, 'test']);
 } finally {
