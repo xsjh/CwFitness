@@ -14,6 +14,7 @@ type AddedExerciseInput = {
   setCount: number;
   targetValue: number;
   weight?: number;
+  saveToWorkoutDay: boolean;
 };
 
 type TrainingPanelProps = {
@@ -26,6 +27,7 @@ type TrainingPanelProps = {
   onRecordSet: (exercise: SessionExercise, setIndex: number, input: SetInput | null) => Promise<void>;
   onAddExercise: (input: AddedExerciseInput) => Promise<void>;
   onRemoveExercise: (exercise: SessionExercise) => Promise<void>;
+  onSkipExercise: (exercise: SessionExercise) => Promise<void>;
   onPause: () => Promise<void>;
   onResume: () => Promise<void>;
   onComplete: () => Promise<void>;
@@ -50,7 +52,7 @@ function resultText(exercise: SessionExercise, result: SetResult | undefined, we
   return metric + weight;
 }
 
-export function TrainingPanel({ session, exercises: availableExercises, busy, weightUnit, canEdit, offline, onRecordSet, onAddExercise, onRemoveExercise, onPause, onResume, onComplete, onAbandon, onTakeover, onReorder }: TrainingPanelProps) {
+export function TrainingPanel({ session, exercises: availableExercises, busy, weightUnit, canEdit, offline, onRecordSet, onAddExercise, onRemoveExercise, onSkipExercise, onPause, onResume, onComplete, onAbandon, onTakeover, onReorder }: TrainingPanelProps) {
   const exercises = session.exercises.filter((exercise) => exercise.removedAt === null);
   const plannedSetCount = exercises.reduce((total, exercise) => total + exercise.setCount, 0);
   const recordedSetCount = exercises.reduce((total, exercise) => total + exercise.setResults.length, 0);
@@ -109,7 +111,8 @@ export function TrainingPanel({ session, exercises: availableExercises, busy, we
             exerciseId: String(data.get("exerciseId")),
             setCount: Number(data.get("setCount")),
             targetValue: Number(data.get("targetValue")),
-            ...(selectedExercise?.resistanceType === "WEIGHTED" ? { weight: Number(data.get("weight")) } : {}),
+          ...(selectedExercise?.resistanceType === "WEIGHTED" ? { weight: Number(data.get("weight")) } : {}),
+          saveToWorkoutDay: data.get("saveToWorkoutDay") === "on",
           });
           event.currentTarget.reset();
           setSelectedExerciseId("");
@@ -119,6 +122,7 @@ export function TrainingPanel({ session, exercises: availableExercises, busy, we
         <label><span>组数</span><input name="setCount" type="number" min={1} defaultValue={3} required disabled={busy || isPaused || readOnly} /></label>
         <label><span>{selectedExercise?.targetType === "DURATION" ? "目标秒数" : "目标次数"}</span><input name="targetValue" type="number" min={1} defaultValue={selectedExercise?.targetType === "DURATION" ? 30 : 8} required disabled={busy || isPaused || readOnly} /></label>
         {selectedExercise?.resistanceType === "WEIGHTED" && <label><span>目标重量（{weightUnit}）</span><input name="weight" type="number" min={0.1} step={0.1} required disabled={busy || isPaused || readOnly} /></label>}
+        <label><span>保存到训练日</span><input name="saveToWorkoutDay" type="checkbox" defaultChecked disabled={busy || isPaused || readOnly} /></label>
         <button className="action-button" type="submit" disabled={busy || isPaused || readOnly}>追加动作</button>
       </form>
 
@@ -137,6 +141,7 @@ export function TrainingPanel({ session, exercises: availableExercises, busy, we
                   <button className="icon-button" type="button" aria-label={`上移${exercise.exerciseName}`} disabled={busy || isPaused || readOnly || exerciseIndex === 0} onClick={() => moveExercise(exerciseIndex, -1)}>↑</button>
                   <button className="icon-button" type="button" aria-label={`下移${exercise.exerciseName}`} disabled={busy || isPaused || readOnly || exerciseIndex === exercises.length - 1} onClick={() => moveExercise(exerciseIndex, 1)}>↓</button>
                   <button className="action-button compact quiet danger" type="button" disabled={busy || isPaused || readOnly} onClick={() => onRemoveExercise(exercise)}>移除动作</button>
+                  <button className="action-button compact quiet" type="button" disabled={busy || isPaused || readOnly} onClick={() => onSkipExercise(exercise)}>跳过动作</button>
                 </div>
               </header>
               <div className="set-grid">

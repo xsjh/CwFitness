@@ -9,7 +9,7 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
   const { sessionId } = await context.params;
   const workoutSession = await prisma.workoutSession.findFirst({
     where: { id: sessionId, userId: session.user.id },
-    select: { status: true, version: true, editingDeviceId: true },
+    select: { status: true, version: true, editingDeviceId: true, workoutDayId: true },
   });
   if (!workoutSession) return Response.json({ error: "Workout Session not found" }, { status: 404 });
   if (workoutSession.status !== "ACTIVE") return Response.json({ error: "Session is not active" }, { status: 409 });
@@ -21,6 +21,7 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
   }
   const exerciseId = typeof body?.exerciseId === "string" ? body.exerciseId : "";
   const clientId = typeof body?.clientId === "string" && body.clientId.length >= 8 && body.clientId.length <= 100 ? body.clientId : null;
+  const saveToWorkoutDay = body?.saveToWorkoutDay !== false;
   if (clientId) {
     const existing = await prisma.sessionExercise.findFirst({
       where: { id: clientId, workoutSessionId: sessionId },
@@ -45,7 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
       data: { version: { increment: 1 } },
     });
     if (lease.count === 0) return null;
-    return tx.sessionExercise.create({
+    const created = await tx.sessionExercise.create({
       data: {
         ...(clientId ? { id: clientId } : {}),
         workoutSessionId: sessionId,
@@ -61,6 +62,11 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
       },
       select: { id: true, exerciseId: true, exerciseName: true, resistanceType: true, targetType: true, setCount: true, targetValue: true, weightGrams: true, source: true, position: true },
     });
+    if (saveToWorkoutDay && workoutSession.workoutDayId) {
+      const exists = await tx.plannedExercise.findFirst({ where: { workoutDayId: workoutSession.workoutDayId, exerciseId } });
+      if (!exists) await tx.plannedExercise.create({ data: { workoutDayId: workoutSession.workoutDayId, exerciseId, setCount: Number(setCount), targetValue: Number(targetValue), weightGrams, position: await tx.plannedExercise.count({ where: { workoutDayId: workoutSession.workoutDayId } }) } });
+    }
+    return created;
   });
   if (!sessionExercise) {
     const latest = await prisma.workoutSession.findUniqueOrThrow({

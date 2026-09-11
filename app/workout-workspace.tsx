@@ -415,7 +415,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
     await runMutation(() => apiRequest(`/api/plans/${plan.id}`, { method: "PATCH", body: JSON.stringify({ archived, version: plan.version }) }), archived ? "计划已归档。" : "计划已恢复。");
   }
 
-  async function addSessionExercise(input: { exerciseId: string; setCount: number; targetValue: number; weight?: number }) {
+  async function addSessionExercise(input: { exerciseId: string; setCount: number; targetValue: number; weight?: number; saveToWorkoutDay: boolean }) {
     if (!session) return;
     const exercise = exercises.find((item) => item.id === input.exerciseId);
     if (!exercise) return;
@@ -468,6 +468,11 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
       },
       "动作已从本次训练移除。",
     );
+  }
+
+  async function skipSessionExercise(exercise: WorkoutSession["exercises"][number]) {
+    if (!session) return;
+    await runMutation(() => apiRequest(`/api/workout-sessions/${session.id}/exercises/${exercise.id}/skip`, { method: "POST", body: JSON.stringify({ version: session.version }) }), "动作已跳过。");
   }
 
   async function reorderSessionExercises(exerciseIds: string[]) {
@@ -700,6 +705,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
                   onRecordSet={recordSet}
                   onAddExercise={addSessionExercise}
                   onRemoveExercise={removeSessionExercise}
+                  onSkipExercise={skipSessionExercise}
                   onPause={pauseWorkout}
                   onResume={resumeWorkout}
                   onComplete={completeWorkout}

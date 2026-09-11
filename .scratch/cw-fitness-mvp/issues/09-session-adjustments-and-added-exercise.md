@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Establish server-authoritative multi-device editing), 04 (Persist a complete offline Workout Session), 06 (Provide progress views and Home overview)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] A User can reorder Session Exercises without changing the Workout Day.
 - [ ] A User can skip an entire Session Exercise so all of its target sets count as zero without adding it to the Removed Exercise count.
@@ -15,4 +15,3 @@
 - [ ] An Added Exercise begins contributing to Progression Suggestions only after it exists as a Planned Exercise in the Workout Plan.
 - [ ] Session reordering, skipping, removal, and saving are replay-safe through offline synchronization.
 - [ ] Automated tests cover all adjustment actions, plan isolation, historical contribution, and progression eligibility.
-
