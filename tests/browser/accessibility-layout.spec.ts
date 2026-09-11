@@ -18,7 +18,13 @@ test("accessibility preferences remove displacement and strengthen surfaces", as
   await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
   await page.goto("/");
   await expect(page.getByTestId("auth-form")).toBeVisible();
-  await expect(page.locator(".auth-form")).toHaveCSS("animation-duration", "0.01s");
+  expect(Number.parseFloat(await page.locator(".auth-form").evaluate((element) => getComputedStyle(element).animationDuration))).toBeLessThanOrEqual(0.01);
+  const passwordInput = page.locator('input[name="password"]');
+  const revealButton = page.getByRole("button", { name: "显示密码" });
+  const [inputBox, buttonBox] = await Promise.all([passwordInput.boundingBox(), revealButton.boundingBox()]);
+  expect(inputBox).not.toBeNull();
+  expect(buttonBox).not.toBeNull();
+  expect(Math.abs((inputBox!.y + inputBox!.height / 2) - (buttonBox!.y + buttonBox!.height / 2))).toBeLessThanOrEqual(1);
   await page.keyboard.press("Tab");
   await expect(page.locator(":focus-visible")).toBeVisible();
 });
