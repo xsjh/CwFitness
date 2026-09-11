@@ -168,6 +168,12 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAccountDeleted }
   useEffect(() => { if (telemetryEnabled === true && !telemetryPageRecorded.current) { telemetryPageRecorded.current = true; void fetch("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ category: "page_visit" }) }).catch(() => undefined); } }, [telemetryEnabled]);
 
   useEffect(() => {
+    if (!notice || notice.includes("失败")) return;
+    const timer = window.setTimeout(() => setNotice(""), 3_500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
     let active = true;
     // Initial workspace data is loaded from the server after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect

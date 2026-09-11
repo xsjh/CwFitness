@@ -68,10 +68,13 @@ export function PlanEditor(props: PlanEditorProps) {
     onStartWorkout,
   } = props;
   const [selectedDayId, setSelectedDayId] = useState("");
+  const [isAddingPlannedExercise, setIsAddingPlannedExercise] = useState(false);
+  const [selectedExerciseId, setSelectedExerciseId] = useState("");
   const selectedPlan = plans.find((plan) => plan.id === selectedPlanId) ?? plans[0] ?? null;
   const selectedDay = selectedPlan?.workoutDays.find((day) => day.id === selectedDayId)
     ?? selectedPlan?.workoutDays[0]
     ?? null;
+  const selectedExercise = exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
   const progressFor = (planned: PlannedExercise) => progress.find((item) => item.plannedExerciseId === planned.id);
 
   async function submitPlan(event: FormEvent<HTMLFormElement>) {
@@ -98,13 +101,15 @@ export function PlanEditor(props: PlanEditorProps) {
     const data = new FormData(form);
     const weightValue = String(data.get("weight"));
     await onAddPlannedExercise(selectedPlan, selectedDay, {
-      exerciseId: String(data.get("exerciseId")),
+      exerciseId: selectedExerciseId,
       setCount: Number(data.get("setCount")),
       targetValue: Number(data.get("targetValue")),
       weight: weightValue ? Number(weightValue) : undefined,
       weightUnit: weightValue ? weightUnit : undefined,
     });
     form.reset();
+    setSelectedExerciseId("");
+    setIsAddingPlannedExercise(false);
   }
 
   return (
@@ -249,28 +254,33 @@ export function PlanEditor(props: PlanEditorProps) {
                         </form>
                       </details>
 
-                      <form className="toolbar-form planned-form" onSubmit={submitPlannedExercise}>
-                        <label>
-                          <span>动作</span>
-                          <select name="exerciseId" required defaultValue="">
-                            <option value="" disabled>选择动作</option>
-                            {exercises.map((exercise) => <option value={exercise.id} key={exercise.id}>{exercise.name}</option>)}
-                          </select>
-                        </label>
-                        <label>
-                          <span>组数</span>
-                          <input name="setCount" type="number" min={1} defaultValue={3} required />
-                        </label>
-                        <label>
-                          <span>次数 / 秒数</span>
-                          <input name="targetValue" type="number" min={1} defaultValue={8} required />
-                        </label>
-                        <label>
-                          <span>重量 {weightUnit}（仅负重动作）</span>
-                          <input name="weight" type="number" min={0.1} step={0.1} placeholder="可选" />
-                        </label>
-                        <button className="action-button primary" type="submit" disabled={busy || exercises.length === 0}>添加动作</button>
-                      </form>
+                      <details className="day-settings planned-exercise-editor" open={isAddingPlannedExercise} onToggle={(event) => setIsAddingPlannedExercise(event.currentTarget.open)}>
+                        <summary>添加动作</summary>
+                        <form className="planned-form" onSubmit={submitPlannedExercise}>
+                          <label>
+                            <span>动作</span>
+                            <select name="exerciseId" required value={selectedExerciseId} onChange={(event) => setSelectedExerciseId(event.target.value)}>
+                              <option value="" disabled>选择动作</option>
+                              {exercises.map((exercise) => <option value={exercise.id} key={exercise.id}>{exercise.name}</option>)}
+                            </select>
+                          </label>
+                          {selectedExercise && <>
+                            <label>
+                              <span>组数</span>
+                              <input name="setCount" type="number" min={1} defaultValue={3} required />
+                            </label>
+                            <label>
+                              <span>{selectedExercise.targetType === "REPETITIONS" ? "目标次数" : "目标时长（秒）"}</span>
+                              <input key={selectedExercise.targetType} name="targetValue" type="number" min={1} defaultValue={selectedExercise.targetType === "REPETITIONS" ? 8 : 30} required />
+                            </label>
+                            {selectedExercise.resistanceType === "WEIGHTED" && <label>
+                              <span>重量 {weightUnit}</span>
+                              <input name="weight" type="number" min={0.1} step={0.1} required />
+                            </label>}
+                          </>}
+                          <button className="action-button primary" type="submit" disabled={busy || !selectedExercise}>添加动作</button>
+                        </form>
+                      </details>
 
                       <div className="planned-list">
                         {selectedDay.plannedExercises.length === 0 ? (
