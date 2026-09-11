@@ -1,4 +1,5 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { WorkoutWorkspace } from "../app/workout-workspace";
@@ -56,5 +57,65 @@ describe("WorkoutWorkspace", () => {
     expect(fetchMock).not.toHaveBeenCalledWith("/api/exercises", expect.anything());
     resolvePlans?.(Response.json({ plans: [] }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/exercises", expect.anything()));
+  });
+
+  it("enters the training view even when the refresh after starting a workout fails", async () => {
+    const workoutSession = {
+      id: "session-1",
+      status: "ACTIVE",
+      timeZone: "UTC",
+      localStartDate: "2026-09-11",
+      startedAt: "2026-09-11T10:00:00.000Z",
+      pausedAt: null,
+      completedAt: null,
+      modifiedAt: "2026-09-11T10:00:00.000Z",
+      trainingTimeSeconds: 0,
+      lastHeartbeatAt: "2026-09-11T10:00:00.000Z",
+      version: 1,
+      editingDeviceId: "device-1",
+      exercises: [{
+        id: "session-exercise-1",
+        exerciseId: "exercise-1",
+        plannedExerciseId: "planned-1",
+        exerciseName: "测试深蹲",
+        resistanceType: "WEIGHTED",
+        targetType: "REPETITIONS",
+        setCount: 3,
+        targetValue: 8,
+        weightGrams: 1000,
+        position: 0,
+        source: "PLANNED",
+        removedAt: null,
+        setResults: [],
+      }],
+    };
+    const plans = [{ id: "plan-1", name: "测试计划", archivedAt: null, version: 1, workoutDays: [{ id: "day-1", name: "测试训练日", suggestedWeekday: null, version: 1, plannedExercises: [{ id: "planned-1", exerciseId: "exercise-1", setCount: 3, targetValue: 8, weightGrams: 1000, position: 0, version: 1 }] }] }];
+    let started = false;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/workout-sessions" && init?.method === "POST") {
+        started = true;
+        return Promise.resolve(Response.json({ workoutSession }, { status: 201 }));
+      }
+      if (url === "/api/plans") return Promise.resolve(started ? Response.json({ error: "操作没有完成，请稍后重试。" }, { status: 500 }) : Response.json({ plans }));
+      if (url === "/api/plans/plan-1/progress") return Promise.resolve(Response.json({ progress: [] }));
+      if (url === "/api/exercises") return Promise.resolve(Response.json({ exercises: [] }));
+      if (url === "/api/workout-sessions/active") return Promise.resolve(Response.json({ workoutSession: null }));
+      if (url === "/api/workout-sessions") return Promise.resolve(Response.json({ workoutSessions: [] }));
+      if (url === "/api/settings") return Promise.resolve(Response.json({ settings: { timeZone: "UTC", weightUnit: "kg" } }));
+      if (url === "/api/backup/version") return Promise.resolve(Response.json({ dataVersion: 0 }));
+      if (url === "/api/privacy") return Promise.resolve(Response.json({ telemetryEnabled: false }));
+      return Promise.resolve(Response.json({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<WorkoutWorkspace user={{ id: "user-1", name: "测试用户", email: "user@example.com" }} deviceId="device-1" onSignOut={vi.fn()} onAuthenticationLost={vi.fn().mockResolvedValue(false)} onAccountDeleted={vi.fn()} />);
+    const startButton = await screen.findByRole("button", { name: "开始训练" });
+    await userEvent.setup().click(startButton);
+
+    expect(await screen.findByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeTruthy();
+    const recordButtons = screen.getAllByRole("button", { name: "记录完成" }) as HTMLButtonElement[];
+    expect(recordButtons.length).toBeGreaterThan(0);
+    expect(recordButtons.every((button) => !button.disabled)).toBe(true);
   });
 });

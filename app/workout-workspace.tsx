@@ -431,13 +431,20 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
     setBusy(true);
     setNotice("");
     try {
-      await apiRequest<{ workoutSession: WorkoutSession }>("/api/workout-sessions", {
+      const { workoutSession } = await apiRequest<{ workoutSession: WorkoutSession }>("/api/workout-sessions", {
         method: "POST",
         body: JSON.stringify({ workoutDayId: day.id, timeZone: settings.timeZone }),
       });
-      await loadData();
+      // The Session already exists at this point, so enter the training view before refreshing.
+      // A failed refresh must not strand the User on the plan page while a session runs.
+      setSession(workoutSession);
       setView("training");
-      setNotice("训练已开始，目标已经锁定。")
+      setNotice("训练已开始，目标已经锁定。");
+      try {
+        await loadData();
+      } catch (refreshError) {
+        await handleBackgroundError(refreshError);
+      }
     } catch (error) {
       setNotice(errorText(error));
     } finally {
