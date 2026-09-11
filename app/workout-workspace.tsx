@@ -115,6 +115,10 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
     if (pending.length > 0) {
       const replay = await syncPendingMutations();
       if (!replay.ok) {
+        if (replay.error instanceof ApiError && replay.error.status === 401) {
+          onAuthenticationLost();
+          return;
+        }
         await restoreDraft();
         setSyncError(errorText(replay.error));
         return;
@@ -153,18 +157,32 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
     setSelectedPlanId((current) => current || plansBody.plans[0]?.id || "");
     const progressBodies = await Promise.all(plansBody.plans.map((plan) => apiRequest<{ progress: ExerciseProgress[] }>(`/api/plans/${plan.id}/progress`, { cache: "no-store" })));
     setProgress(progressBodies.flatMap((body) => body.progress));
-  }, [restoreDraft, syncPendingMutations, user.id]);
+  }, [onAuthenticationLost, restoreDraft, syncPendingMutations, user.id]);
+
+  const handleBackgroundError = useCallback((error: unknown) => {
+    if (error instanceof ApiError && error.status === 401) onAuthenticationLost();
+    else setNotice(errorText(error));
+  }, [onAuthenticationLost]);
+
+  const refreshData = useCallback(async (successNotice?: string) => {
+    try {
+      await loadData();
+      if (successNotice) setNotice(successNotice);
+    } catch (error) {
+      handleBackgroundError(error);
+    }
+  }, [handleBackgroundError, loadData]);
 
   useEffect(() => {
     const channel = new BroadcastChannel("cwfitness-backup");
-    channel.onmessage = () => { void loadData().then(() => setNotice("已检测到数据恢复，页面已更新。")); };
+    channel.onmessage = () => { void refreshData("已检测到数据恢复，页面已更新。"); };
     const timer = window.setInterval(() => {
       void apiRequest<{ dataVersion: number }>("/api/backup/version", { cache: "no-store" }).then((body) => {
-        if (dataVersion !== null && body.dataVersion !== dataVersion) { void loadData().then(() => setNotice("已检测到其他设备恢复的数据，页面已更新。")); }
-      }).catch(() => undefined);
+        if (dataVersion !== null && body.dataVersion !== dataVersion) void refreshData("已检测到其他设备恢复的数据，页面已更新。");
+      }).catch(handleBackgroundError);
     }, 30_000);
     return () => { window.clearInterval(timer); channel.close(); };
-  }, [dataVersion, loadData]);
+  }, [dataVersion, handleBackgroundError, refreshData]);
 
   useEffect(() => { if (telemetryEnabled === true && !telemetryPageRecorded.current) { telemetryPageRecorded.current = true; void fetch("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ category: "page_visit" }) }).catch(() => undefined); } }, [telemetryEnabled]);
 
@@ -178,41 +196,34 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
     let active = true;
     // Initial workspace data is loaded from the server after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadData()
-      .catch((error) => {
-        if (!active) return;
-        if (error instanceof ApiError && error.status === 401) onAuthenticationLost();
-        else setNotice(errorText(error));
-      })
+    void refreshData()
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [loadData, onAuthenticationLost]);
+  }, [refreshData]);
 
   useEffect(() => {
     if (!session || session.status !== "ACTIVE") return;
     const heartbeat = () => {
       void apiRequest(`/api/workout-sessions/${session.id}/heartbeat`, { method: "POST", body: "{}" }).catch((error) => {
-        void loadData().then(() => setNotice(
-          error instanceof ApiError && error.code === "SESSION_TAKEN_OVER"
-            ? "另一台设备已接管训练，当前页面已切换为只读。"
-            : "训练已因长时间无活动而挂起；确认后可继续训练。",
-        ));
+        void refreshData(error instanceof ApiError && error.code === "SESSION_TAKEN_OVER"
+          ? "另一台设备已接管训练，当前页面已切换为只读。"
+          : "训练已因长时间无活动而挂起；确认后可继续训练。");
       });
     };
     heartbeat();
     const timer = window.setInterval(heartbeat, 60_000);
     return () => window.clearInterval(timer);
-  }, [loadData, session]);
+  }, [refreshData, session]);
 
   useEffect(() => {
-    const reconnect = () => { void loadData(); };
+    const reconnect = () => { void refreshData(); };
     window.addEventListener("online", reconnect);
     return () => window.removeEventListener("online", reconnect);
-  }, [loadData]);
+  }, [refreshData]);
 
   async function runMutation<T>(action: () => Promise<T>, successMessage: string) {
     setBusy(true);
@@ -657,13 +668,13 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
         {syncError && (
           <div className="workspace-notice error" role="alert">
             <span>{pendingSync > 0 ? `${pendingSync} 项训练记录等待同步：${syncError}` : syncError}</span>
-            <button className="text-button" type="button" onClick={() => void loadData()}>重试同步</button>
+            <button className="text-button" type="button" onClick={() => void refreshData()}>重试同步</button>
           </div>
         )}
         {conflict && (
           <div className="workspace-notice error" role="alert">
             <span>{conflict.message}。请刷新后再编辑。</span>
-            <button className="text-button" type="button" onClick={() => void loadData()}>刷新最新数据</button>
+            <button className="text-button" type="button" onClick={() => void refreshData()}>刷新最新数据</button>
           </div>
         )}
 
