@@ -17,6 +17,7 @@ const env = {
   TEST_BASE_URL: baseUrl,
   PLAYWRIGHT_CHANNEL: process.env.PLAYWRIGHT_CHANNEL ?? 'chrome',
   LOCAL_EMAIL_OUTBOX: localEmailOutbox,
+  EMAIL_VERIFICATION_REQUIRED: 'false',
   PASSWORD_RESET_EXPIRES_IN_SECONDS: '2',
 };
 

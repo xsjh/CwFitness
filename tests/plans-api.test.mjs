@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createEmailVerificationToken } from 'better-auth/api';
 import pg from 'pg';
 
 import { waitForLocalEmail } from './helpers/local-email-outbox.mjs';
@@ -44,14 +43,9 @@ async function registerVerifiedUser(label) {
   });
 
   if (response.status !== 200) assert.fail(`sign-up failed: ${await response.text()}`);
-  assert.deepEqual(response.headers.getSetCookie(), [], 'unverified sign-up must not establish a session');
-  const message = await waitForLocalEmail({ to: email, kind: 'verification' });
-  const verificationUrl = new URL(message.url);
-  const verification = await request(`${verificationUrl.pathname}${verificationUrl.search}`, { redirect: 'manual' });
-  assert.equal(verification.status, 302);
-  const setCookies = verification.headers.getSetCookie();
+  const setCookies = response.headers.getSetCookie();
   const cookie = setCookies.map((value) => value.split(';', 1)[0]).join('; ');
-  assert.ok(cookie, 'verification must establish a session cookie');
+  assert.ok(cookie, 'sign-up must establish a session cookie');
   assert.match(setCookies.join('; '), /HttpOnly/);
   assert.match(setCookies.join('; '), /SameSite=Lax/);
   if (baseUrl.startsWith('https:')) assert.match(setCookies.join('; '), /Secure/);
@@ -66,7 +60,7 @@ test('Home renders the interactive Split authentication flow', async () => {
   assert.match(html, /继续训练。/);
 });
 
-test('Sign-up remains pending until the User verifies their email', async () => {
+test('A User can sign up and sign in without email verification', async () => {
   const email = `unverified-${crypto.randomUUID()}@example.com`;
   const response = await request('/api/auth/sign-up/email', {
     method: 'POST',
@@ -74,42 +68,13 @@ test('Sign-up remains pending until the User verifies their email', async () => 
   });
 
   assert.equal(response.status, 200);
-  assert.deepEqual(response.headers.getSetCookie(), []);
-  const deniedSignIn = await request('/api/auth/sign-in/email', {
+  const signUpCookies = response.headers.getSetCookie();
+  assert.ok(signUpCookies.length > 0, 'sign-up must establish a session');
+  const signIn = await request('/api/auth/sign-in/email', {
     method: 'POST',
     body: JSON.stringify({ email, password: 'test-password-123' }),
   });
-  assert.equal(deniedSignIn.status, 403);
-
-  const message = await waitForLocalEmail({ to: email, kind: 'verification' });
-  assert.match(message.url, /\/api\/auth\/verify-email\?token=/);
-});
-
-test('Email verification rejects invalid and expired links and safely handles reuse', async () => {
-  const email = `verification-errors-${crypto.randomUUID()}@example.com`;
-  await request('/api/auth/sign-up/email', {
-    method: 'POST',
-    body: JSON.stringify({ name: 'Verification Errors', email, password: 'test-password-123' }),
-  });
-
-  const invalid = await request('/api/auth/verify-email?token=invalid&callbackURL=%2Fverify-email%2Fresult', { redirect: 'manual' });
-  assert.equal(invalid.status, 302);
-  assert.match(invalid.headers.get('location') ?? '', /error=INVALID_TOKEN/);
-
-  const expiredToken = await createEmailVerificationToken(process.env.BETTER_AUTH_SECRET, email, undefined, -1);
-  const expired = await request(`/api/auth/verify-email?token=${encodeURIComponent(expiredToken)}&callbackURL=%2Fverify-email%2Fresult`, { redirect: 'manual' });
-  assert.equal(expired.status, 302);
-  assert.match(expired.headers.get('location') ?? '', /error=TOKEN_EXPIRED/);
-
-  const message = await waitForLocalEmail({ to: email, kind: 'verification' });
-  const verificationUrl = new URL(message.url);
-  const firstUse = await request(`${verificationUrl.pathname}${verificationUrl.search}`, { redirect: 'manual' });
-  assert.equal(firstUse.status, 302);
-  assert.doesNotMatch(firstUse.headers.get('location') ?? '', /error=/);
-
-  const reuse = await request(`${verificationUrl.pathname}${verificationUrl.search}`, { redirect: 'manual' });
-  assert.equal(reuse.status, 302);
-  assert.doesNotMatch(reuse.headers.get('location') ?? '', /error=/);
+  assert.equal(signIn.status, 200);
 });
 
 test('Forgot-password responses do not reveal account existence and reset changes the password', async () => {
@@ -194,7 +159,7 @@ test('Sign-out invalidates the current Session cookie', async () => {
   assert.equal((await request('/api/plans', { headers: { cookie } })).status, 401);
 });
 
-test('An unverified legacy Session cannot access protected APIs', async () => {
+test('An unverified legacy Session can access protected APIs while verification is disabled', async () => {
   const { cookie, email } = await registerVerifiedUser('LegacyUnverified');
   await setEmailVerified(email, false);
 
@@ -202,7 +167,7 @@ test('An unverified legacy Session cannot access protected APIs', async () => {
   assert.equal(sessionResponse.status, 200);
   assert.equal((await sessionResponse.json()).user.emailVerified, false);
   const protectedResponse = await request('/api/plans', { headers: { cookie } });
-  assert.equal(protectedResponse.status, 401);
+  assert.equal(protectedResponse.status, 200);
 });
 
 test('Workout Plans are isolated by the authenticated User', async () => {

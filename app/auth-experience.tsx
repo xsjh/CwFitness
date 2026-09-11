@@ -20,13 +20,11 @@ export function AuthExperience() {
   const [deviceId, setDeviceId] = useState("");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"error" | "success">("error");
-  const [lastEmail, setLastEmail] = useState("");
-  const [canResendVerification, setCanResendVerification] = useState(false);
 
   async function loadSession() {
     const response = await fetch("/api/auth/get-session?disableCookieCache=true", { cache: "no-store" });
     const session = (await response.json()) as { user?: User; session?: { id: string } } | null;
-    if (!session?.user?.emailVerified) {
+    if (!session?.user) {
       await fetch("/api/auth/sign-out", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -57,7 +55,6 @@ export function AuthExperience() {
     setMessage("");
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email"));
-    setLastEmail(email);
 
     if (mode === "forgot-password") {
       const response = await fetch("/api/auth/request-password-reset", {
@@ -85,14 +82,6 @@ export function AuthExperience() {
     if (!response.ok) {
       setMessageTone("error");
       setMessage(await errorMessage(response));
-      setCanResendVerification(response.status === 403);
-      setBusy(false);
-      return;
-    }
-    if (mode === "sign-up") {
-      setMode("sign-in");
-      setMessageTone("success");
-      setMessage("验证邮件已发送。请打开邮件中的链接完成验证。");
       setBusy(false);
       return;
     }
@@ -100,22 +89,6 @@ export function AuthExperience() {
     const loaded = await loadSession();
     setMessageTone("success");
     setMessage(loaded ? "" : "登录成功，正在恢复会话…");
-    setBusy(false);
-  }
-
-  async function resendVerification() {
-    if (!lastEmail) return;
-    setBusy(true);
-    const response = await fetch("/api/auth/send-verification-email", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: lastEmail, callbackURL: "/verify-email/result" }),
-    });
-    setMessageTone(response.ok ? "success" : "error");
-    setMessage(response.ok
-      ? "如果该邮箱仍未验证，新的验证邮件已发送。"
-      : await errorMessage(response));
-    setCanResendVerification(false);
     setBusy(false);
   }
 
@@ -131,7 +104,6 @@ export function AuthExperience() {
       setShowPassword(false);
       setUser(null);
       setMessage("");
-      setCanResendVerification(false);
     } else {
       setMessageTone("error");
       setMessage(await errorMessage(response));
@@ -163,7 +135,6 @@ export function AuthExperience() {
           </span>
         </label>}
         {message && <p className={`status ${messageTone}`} role={messageTone === "error" ? "alert" : "status"}>{message}</p>}
-        {canResendVerification && <button className="text-button" type="button" disabled={busy} onClick={resendVerification}>重新发送验证邮件</button>}
         <button className="primary-button" type="submit" disabled={busy}>{busy ? "请稍候…" : mode === "sign-in" ? "登录" : mode === "sign-up" ? "注册" : "发送重置链接"}</button>
         <div className="auth-links">
           {mode === "sign-in" && <button className="text-button" type="button" onClick={() => { setMode("forgot-password"); setMessage(""); }}>忘记密码？</button>}
