@@ -15,3 +15,20 @@
 - [ ] No UI text or control overlaps at supported viewport sizes, and no function depends solely on hover.
 - [ ] The documented local validation command passes completely with no known local blockers.
 
+## Comments
+
+**2026-09-11 — verification run (`npm test`)**
+
+Still open. Current state:
+
+- Passing: desktop/mobile keyboard-reachability-without-overlap, and the reduced-motion /
+  forced-colors degradation checks (`tests/browser/accessibility-layout.spec.ts`); full
+  authenticated smoke flow (`tests/browser/account-smoke.spec.ts`).
+- Not covered: Firefox and WebKit runs (Playwright is pinned to the `chrome` channel and
+  `tests/browser/` holds only two spec files); no Chromium E2E coverage of the offline,
+  history, backup, or privacy flows; no reduced-transparency check.
+
+To reach a clean `npm test`, the harness also had to restore `PROGRAMFILES` / `HOMEDRIVE`
+before launching Playwright — npm drops those when the runner starts from a POSIX shell
+(`scripts/test-integration.mjs`).
+
