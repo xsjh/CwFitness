@@ -23,6 +23,9 @@ const env = {
   LOCAL_EMAIL_OUTBOX: localEmailOutbox,
   EMAIL_VERIFICATION_REQUIRED: 'false',
   PASSWORD_RESET_EXPIRES_IN_SECONDS: '2',
+  // The dev indicator floats over the bottom-docked mobile navigation, so the browser
+  // suite cannot reach the "今日" control while it is on screen.
+  CWFITNESS_DEV_INDICATOR: 'off',
   HOMEDRIVE: process.env.HOMEDRIVE ?? systemDrive,
   PROGRAMFILES: process.env.PROGRAMFILES ?? `${systemDrive}\\Program Files`,
 };
@@ -106,7 +109,7 @@ try {
   await run(node, [prismaCli, 'migrate', 'deploy']);
 
   await assertPortFree();
-  server = spawn(node, [nextCli, 'dev', '-H', '127.0.0.1', '-p', '3100'], {
+  server = spawn(node, [nextCli, 'dev', '--webpack', '-H', '127.0.0.1', '-p', '3100'], {
     cwd: root,
     env,
     stdio: 'inherit',
