@@ -6,6 +6,17 @@ import type { Page } from "@playwright/test";
 
 export type Box = { label: string; left: number; right: number; top: number; bottom: number; width: number; height: number };
 
+/**
+ * Viewport sizes the layout specs cycle over. The desktop / mobile pair matches the MVP
+ * spec's checkbox that every core flow has to fit at 1280px and at 390px.
+ */
+export const VIEWPORTS = [
+  { name: "desktop", width: 1280, height: 800 },
+  { name: "mobile", width: 390, height: 844 },
+] as const;
+
+export type Viewport = (typeof VIEWPORTS)[number];
+
 const measuredTags = ["a", "button", "input", "select", "summary", "h1", "h2", "h3"];
 
 /**
@@ -63,4 +74,19 @@ export function overlapping(boxes: Box[]) {
 /** Controls pushed past the left or right page edge, where they cannot be reached. */
 export function clipped(boxes: Box[], viewportWidth: number) {
   return boxes.filter((box) => box.left < -0.5 || box.right > viewportWidth + 0.5).map((box) => box.label);
+}
+
+/**
+ * Labels of the controls inside `root` that exist in the DOM but only become interactive on
+ * hover — `pointer-events: none`, `opacity: 0`, or `visibility: hidden`. Closed `<details>`
+ * content is left out because it is not laid out until the user opens it.
+ */
+export async function hoverOnly(page: Page, root: string) {
+  return page.locator(`${root} button, ${root} summary`).evaluateAll((elements) => elements
+    .filter((element) => !element.closest("details:not([open])"))
+    .filter((element) => {
+      const style = getComputedStyle(element);
+      return style.pointerEvents === "none" || Number.parseFloat(style.opacity) === 0 || style.visibility === "hidden";
+    })
+    .map((element) => (element.textContent ?? "").trim().slice(0, 24)));
 }

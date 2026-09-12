@@ -1,6 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/test";
 import {
-  acceptDialogs,
   completeWorkout,
   openView,
   prepareWorkout,
@@ -19,10 +18,6 @@ import {
 const exercise = "杠铃深蹲";
 const plan = "力量基础";
 const day = "推日";
-
-test.beforeEach(async ({ page }) => {
-  acceptDialogs(page);
-});
 
 test("an account signs up, signs out, and signs back in @cross-browser", async ({ page }) => {
   const email = uniqueEmail("cross-browser-account");

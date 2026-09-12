@@ -1,6 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./helpers/test";
 import {
-  acceptDialogs,
   completeWorkout,
   createExercise,
   createPlanWithDay,
@@ -26,10 +25,6 @@ async function seedCompletedSession(page: Page) {
   }
   await completeWorkout(page);
 }
-
-test.beforeEach(async ({ page }) => {
-  acceptDialogs(page);
-});
 
 test("a Workout Session records sets, pauses, resumes, and completes", async ({ page }) => {
   await signUp(page, { email: uniqueEmail("session") });

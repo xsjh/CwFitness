@@ -1,6 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/test";
 import {
-  acceptDialogs,
   completeWorkout,
   openView,
   prepareWorkout,
@@ -13,10 +12,6 @@ import {
 const exercise = "杠铃深蹲";
 const plan = "力量基础";
 const day = "推日";
-
-test.beforeEach(async ({ page }) => {
-  acceptDialogs(page);
-});
 
 test("progress views report per-Exercise trends and plan completion", async ({ page }) => {
   await signUp(page, { email: uniqueEmail("progress") });

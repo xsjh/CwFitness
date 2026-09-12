@@ -3,7 +3,9 @@ import { defineConfig } from "@playwright/test";
 // Firefox and WebKit only have to cover the flows the MVP spec names for them:
 // sign-in, Workout Session recording, and progress viewing. Everything else stays on
 // Chromium, which runs the complete flow set. Tag a test with @cross-browser to run it
-// on all three engines.
+// on all three engines. Firefox and WebKit run at the mobile viewport so the spec's
+// mobile-viewport checkbox is satisfied on every cross-browser flow; Chromium already
+// covers the desktop viewport for the same tests.
 const crossBrowser = /@cross-browser/;
 
 export default defineConfig({
@@ -28,12 +30,12 @@ export default defineConfig({
     {
       name: "firefox",
       grep: crossBrowser,
-      use: { browserName: "firefox" },
+      use: { browserName: "firefox", viewport: { width: 390, height: 844 } },
     },
     {
       name: "webkit",
       grep: crossBrowser,
-      use: { browserName: "webkit" },
+      use: { browserName: "webkit", viewport: { width: 390, height: 844 } },
     },
   ],
 });

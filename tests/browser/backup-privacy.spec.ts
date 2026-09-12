@@ -1,7 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/test";
 import {
   PASSWORD,
-  acceptDialogs,
   createPlanWithDay,
   openView,
   prepareWorkout,
@@ -13,10 +12,6 @@ import {
 const exercise = "杠铃深蹲";
 const plan = "力量基础";
 const day = "推日";
-
-test.beforeEach(async ({ page }) => {
-  acceptDialogs(page);
-});
 
 test("a JSON backup is exported and restored over the current workspace", async ({ page }) => {
   await signUp(page, { email: uniqueEmail("backup") });

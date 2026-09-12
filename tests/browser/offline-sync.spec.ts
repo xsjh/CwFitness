@@ -1,6 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/test";
 import {
-  acceptDialogs,
   prepareWorkout,
   recordSet,
   setRow,
@@ -13,10 +12,6 @@ import {
 const exercise = "杠铃深蹲";
 const plan = "力量基础";
 const day = "推日";
-
-test.beforeEach(async ({ page }) => {
-  acceptDialogs(page);
-});
 
 test("a Workout Session recorded offline syncs once when the connection returns", async ({ page }) => {
   await signUp(page, { email: uniqueEmail("offline") });

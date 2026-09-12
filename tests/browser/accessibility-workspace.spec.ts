@@ -1,7 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
-import { clipped, measuredBoxes, overlapping } from "./helpers/layout";
+import { clipped, hoverOnly, measuredBoxes, overlapping, VIEWPORTS } from "./helpers/layout";
+import { expect, test, type Page } from "./helpers/test";
 import {
-  acceptDialogs,
   openView,
   prepareWorkout,
   signUp,
@@ -61,10 +60,6 @@ async function transparencyCoverage(page: Page) {
   });
 }
 
-test.beforeEach(async ({ page }) => {
-  acceptDialogs(page);
-});
-
 test("reduced transparency is declared for every translucent surface", async ({ page }) => {
   await signUp(page, { email: uniqueEmail("transparency") });
   const report = await transparencyCoverage(page);
@@ -90,16 +85,23 @@ test("increased contrast strengthens boundaries on the authenticated workspace",
   await expect(currentNav).toHaveCSS("outline-color", "rgb(255, 255, 255)");
 });
 
-test("reduced motion removes displacement from the authenticated workspace", async ({ page }) => {
+test("reduced motion replaces displacement with a short cross-fade", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await signUp(page, { email: uniqueEmail("motion") });
 
   const section = page.locator(".workspace-section").first();
   await expect(section).toBeVisible();
+  // 位移被替换为短交叉淡化：动画非零且时长短
   const animationSeconds = await section.evaluate((element) => Number.parseFloat(getComputedStyle(element).animationDuration));
-  expect(animationSeconds).toBeLessThanOrEqual(0.001);
-  const transitionSeconds = await page.locator(".action-button").first().evaluate((element) => getComputedStyle(element).transitionDuration);
-  expect(transitionSeconds).toBe("0s");
+  expect(animationSeconds).toBeGreaterThan(0);
+  expect(animationSeconds).toBeLessThanOrEqual(0.3);
+  // 过渡保留给 cross-fade
+  const actionButton = page.locator(".action-button").first();
+  const transitionSeconds = await actionButton.evaluate((element) => Number.parseFloat(getComputedStyle(element).transitionDuration));
+  expect(transitionSeconds).toBeGreaterThan(0);
+  // 关键约束：过渡不能作用于 transform，否则位移还会发生
+  const transitionProperty = await actionButton.evaluate((element) => getComputedStyle(element).transitionProperty);
+  expect(transitionProperty).not.toMatch(/\btransform\b/);
 });
 
 test("primary views are reachable with the keyboard alone", async ({ page }) => {
@@ -120,7 +122,7 @@ test("primary views are reachable with the keyboard alone", async ({ page }) => 
   await expect(page.locator(".workspace-nav button[aria-current='page']")).toHaveText("动作");
 });
 
-for (const viewport of [{ name: "desktop", width: 1280, height: 800 }, { name: "mobile", width: 390, height: 844 }]) {
+for (const viewport of VIEWPORTS) {
   test(`every core view fits the ${viewport.name} viewport without overlap`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await signUp(page, { email: uniqueEmail(`layout-${viewport.name}`) });
@@ -140,16 +142,7 @@ for (const viewport of [{ name: "desktop", width: 1280, height: 800 }, { name: "
       expect(clipped(boxes, viewport.width), `${view} controls outside the ${viewport.name} viewport`).toEqual([]);
       expect(overlapping(boxes), `${view} controls overlap at ${viewport.name}`).toEqual([]);
 
-      const hoverOnly = await page
-        .locator(".workspace-body button, .workspace-body summary")
-        .evaluateAll((elements) => elements
-          .filter((element) => !element.closest("details:not([open])"))
-          .filter((element) => {
-            const style = getComputedStyle(element);
-            return style.pointerEvents === "none" || Number.parseFloat(style.opacity) === 0 || style.visibility === "hidden";
-          })
-          .map((element) => (element.textContent ?? "").trim().slice(0, 24)));
-      expect(hoverOnly, `${view} has controls that only appear on hover`).toEqual([]);
+      expect(await hoverOnly(page, ".workspace-body"), `${view} has controls that only appear on hover`).toEqual([]);
     }
 
     await openView(page, "计划");

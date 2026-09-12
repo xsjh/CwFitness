@@ -1,8 +1,8 @@
-import { expect, test } from "@playwright/test";
-import { clipped, measuredBoxes, overlapping } from "./helpers/layout";
+import { clipped, measuredBoxes, overlapping, VIEWPORTS } from "./helpers/layout";
+import { expect, test } from "./helpers/test";
 import { gotoAuth } from "./helpers/workspace";
 
-for (const viewport of [{ name: "desktop", width: 1280, height: 800 }, { name: "mobile", width: 390, height: 844 }]) {
+for (const viewport of VIEWPORTS) {
   test(`${viewport.name} authentication controls stay reachable without overlap`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await gotoAuth(page);
@@ -34,10 +34,12 @@ test("no authentication control depends on hover to appear", async ({ page }) =>
   expect(hoverOnly).toEqual([]);
 });
 
-test("accessibility preferences remove displacement and strengthen surfaces", async ({ page }) => {
+test("accessibility preferences replace displacement with a short cross-fade and strengthen surfaces", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
   await gotoAuth(page);
-  expect(Number.parseFloat(await page.locator(".auth-form").evaluate((element) => getComputedStyle(element).animationDuration))).toBeLessThanOrEqual(0.01);
+  const animationSeconds = await page.locator(".auth-form").evaluate((element) => Number.parseFloat(getComputedStyle(element).animationDuration));
+  expect(animationSeconds).toBeGreaterThan(0);
+  expect(animationSeconds).toBeLessThanOrEqual(0.3);
   const passwordInput = page.locator('input[name="password"]');
   const revealButton = page.getByRole("button", { name: "显示密码" });
   const [inputBox, buttonBox] = await Promise.all([passwordInput.boundingBox(), revealButton.boundingBox()]);
