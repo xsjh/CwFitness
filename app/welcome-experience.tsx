@@ -22,6 +22,10 @@ const principles = ["计划不替你猜测", "训练记录属于你", "进度来
 
 export function WelcomeExperience() {
   useEffect(() => {
+    void fetch("/api/auth/get-session?disableCookieCache=true", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<{ user?: unknown }> : null)
+      .then((session) => { if (session?.user) window.location.replace("/auth"); })
+      .catch(() => undefined);
     if (typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       (entries) => entries.forEach((entry) => entry.isIntersecting && entry.target.classList.add("is-visible")),
@@ -79,7 +83,7 @@ export function WelcomeExperience() {
 
       <section className="welcome-feature welcome-section">
         <div className="welcome-feature-copy welcome-reveal"><p className="welcome-index">03 / 03</p><p className="welcome-kicker">查看 Plan Progress</p><h2>让长期变化，<br />有迹可循。</h2><p>只有已完成的 Workout Session 会成为进度的一部分。回看同一 Workout Plan 中的训练日期和 Exercise 趋势，判断下一步，而不是凭感觉猜测。</p></div>
-        <div className="welcome-progress-visual liquid-glass welcome-reveal" aria-label="Plan Progress 示例"><div className="welcome-visual-top"><span>Plan Progress</span><b>过去 8 周</b></div><div className="welcome-progress-stat"><strong>12</strong><span>次 Completed Session</span></div><div className="welcome-chart" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="welcome-progress-footer"><span>周一</span><span>周三</span><span>周五</span><span>今天</span></div></div>
+        <div className="welcome-progress-visual liquid-glass welcome-reveal" aria-label="Plan Progress 视觉示例"><div className="welcome-visual-top"><span>训练记录示例</span><b>你的节奏</b></div><div className="welcome-progress-stat"><strong>记录</strong><span>已完成的 Workout Session</span></div><div className="welcome-chart" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="welcome-progress-footer"><span>周一</span><span>周三</span><span>周五</span><span>今天</span></div></div>
       </section>
 
       <section className="welcome-gallery welcome-section"><div className="welcome-gallery-heading welcome-reveal"><p className="welcome-kicker">清醒地训练</p><h2>有结构，<br />才能更专注。</h2></div><div className="welcome-gallery-grid"><figure className="welcome-reveal"><img src={imageSet[1].src} alt={imageSet[1].alt} /></figure><figure className="welcome-reveal"><img src={imageSet[2].src} alt={imageSet[2].alt} /></figure></div></section>
