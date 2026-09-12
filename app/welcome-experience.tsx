@@ -26,12 +26,13 @@ export function WelcomeExperience() {
       .then((response) => response.ok ? response.json() as Promise<{ user?: unknown }> : null)
       .then((session) => { if (session?.user) window.location.replace("/auth"); })
       .catch(() => undefined);
-    if (typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
+    const revealElements = document.querySelectorAll(".welcome-reveal");
+    const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(
       (entries) => entries.forEach((entry) => entry.isIntersecting && entry.target.classList.add("is-visible")),
       { threshold: 0.13 },
     );
-    document.querySelectorAll(".welcome-reveal").forEach((element) => observer.observe(element));
+    if (observer) revealElements.forEach((element) => observer.observe(element));
+    else revealElements.forEach((element) => element.classList.add("is-visible"));
 
     const updateScrollProgress = () => {
       const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
@@ -43,7 +44,7 @@ export function WelcomeExperience() {
     window.addEventListener("scroll", updateScrollProgress, { passive: true });
     window.addEventListener("resize", updateScrollProgress);
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
       window.removeEventListener("scroll", updateScrollProgress);
       window.removeEventListener("resize", updateScrollProgress);
       delete document.documentElement.dataset.welcomeScrolled;
@@ -92,7 +93,7 @@ export function WelcomeExperience() {
         </div>
       </section>
 
-      <section className="welcome-image-break"><img src={imageSet[0].src} alt={imageSet[0].alt} /><div><p className="welcome-kicker">有计划，也有余地</p><h2>把注意力留给<br />眼前这一组。</h2></div></section>
+      <section className="welcome-image-break welcome-reveal welcome-image-scene"><img src={imageSet[0].src} alt={imageSet[0].alt} /><div><p className="welcome-kicker">有计划，也有余地</p><h2>把注意力留给<br />眼前这一组。</h2></div></section>
 
       <section className="welcome-feature welcome-feature-reverse welcome-section">
         <div className="welcome-session-visual liquid-glass welcome-reveal welcome-entrance" aria-label="Workout Session 示例"><div className="welcome-session-header"><span>进行中的训练</span><b>28:42</b></div><h3>杠铃深蹲</h3><p>4 组 × 8 次 · 75 kg</p><div className="welcome-set-row complete"><span>01</span><b>8 × 75</b><i>完成</i></div><div className="welcome-set-row complete"><span>02</span><b>8 × 75</b><i>完成</i></div><div className="welcome-set-row current"><span>03</span><b>8 × 75</b><i>记录本组</i></div></div>

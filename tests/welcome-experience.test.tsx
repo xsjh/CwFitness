@@ -27,5 +27,7 @@ describe("WelcomeExperience", () => {
     expect(screen.queryByText(/\$\d/)).toBeNull();
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("welcome-entrance");
     expect(screen.getByLabelText("Plan Progress 视觉示例").className).toContain("welcome-entrance");
+    expect(screen.getByRole("img", { name: "深色健身房中的力量训练器械" }).closest(".welcome-image-scene")).toBeTruthy();
+    expect(screen.getByLabelText("Workout Plan 示例").className).toContain("is-visible");
   });
 });
