@@ -2,3 +2,10 @@
 .welcome-nav{border:0;border-radius:0;background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}.welcome-nav::before{display:none}.welcome-nav-links{margin-left:auto}.welcome-nav-cta{margin-left:clamp(18px,3vw,42px);border:1px solid rgba(244,247,241,.33);background:transparent}.welcome-hero-line{opacity:0;filter:blur(8px);transform:translateY(-20px);animation:welcome-line-arrive 720ms var(--ease) forwards}.welcome-hero-line:nth-child(1){animation-delay:100ms}.welcome-hero-line:nth-child(2){animation-delay:180ms}.welcome-hero-line:nth-child(3){animation-delay:260ms}.welcome-hero-line:nth-child(4){animation-delay:340ms}.welcome-reveal{filter:blur(8px);transition:opacity 720ms var(--ease),transform 720ms var(--ease),filter 560ms var(--ease)}.welcome-reveal.is-visible{filter:blur(0)}@keyframes welcome-line-arrive{to{opacity:1;filter:blur(0);transform:translateY(0)}}
 @media(max-width:780px){.welcome-nav{padding-right:0}.welcome-nav-cta{margin-left:14px;border-color:rgba(244,247,241,.4)}}
 @media(prefers-reduced-motion:reduce){.welcome-hero-line{opacity:1;filter:none;transform:none;animation:none}.welcome-reveal{filter:none}}
+
+/* The page's main rhythm follows the reader's scroll position, not a one-time trigger. */
+@supports (animation-timeline:view()){
+  .welcome-reveal:not(.welcome-hero-content){animation:welcome-scroll-reveal linear both;animation-timeline:view();animation-range:entry 0% cover 38%;}
+  @keyframes welcome-scroll-reveal{from{opacity:0;filter:blur(12px);transform:translateY(52px)}to{opacity:1;filter:blur(0);transform:translateY(0)}}
+}
+@media(prefers-reduced-motion:reduce){.welcome-reveal:not(.welcome-hero-content){animation:none;opacity:1;filter:none;transform:none}}
