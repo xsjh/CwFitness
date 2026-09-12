@@ -49,6 +49,7 @@ test("the welcome hero completes its entrance when motion is forced", async ({ p
 });
 
 test("below-the-fold sections never use a blur or opacity entrance", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
 
   const targets = page.locator("[data-scroll-motion]");
