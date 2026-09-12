@@ -21,6 +21,10 @@ Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
 
 A skill at `.workbuddy/skills/unit-test/SKILL.md` owns adding unit tests to code that already exists, running the unit layer, and writing the report to `docs/testing-reports/`. Load it when the work is 补单测 / 跑单测 / 测试报告 / 提覆盖率, or when the unit layer needs to be green before a delivery. Test-first work on behavior that does not exist yet belongs to the `tdd` skill instead.
 
+### Integration test selection
+
+`tests/selectors/path-groups.json` is the review surface for “what does `npm test` actually run for me?”. Update it with the source path and owned browser spec whenever adding a selectable group. The 10-minute fast and 25-minute full budgets are warnings today, not gates.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

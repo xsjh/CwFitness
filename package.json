@@ -8,10 +8,11 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node scripts/test-integration.mjs",
+    "test": "vitest run && node scripts/test-selector.mjs fast",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "node scripts/test-integration.mjs",
+    "test:full": "vitest run && node scripts/test-selector.mjs full",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev"
   },

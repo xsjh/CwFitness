@@ -1,0 +1,12 @@
+{
+  "groups": {
+    "auth": { "match": ["lib/auth.ts", "app/api/auth/**", "tests/browser/account-smoke.spec.ts"] },
+    "plans": { "match": ["app/api/plans/**", "app/api/exercises/**", "tests/browser/workout-session.spec.ts"] },
+    "sessions": { "match": ["lib/workout-sessions.ts", "lib/workout-session-domain.ts", "app/api/workout-sessions/**", "tests/browser/workout-session.spec.ts", "tests/browser/offline-sync.spec.ts"] },
+    "progress": { "match": ["app/api/telemetry/**", "tests/browser/progress-view.spec.ts"] },
+    "browser-core": { "match": ["app/page.tsx", "tests/browser/account-smoke.spec.ts"], "always": true },
+    "@cross-browser": { "match": ["tests/browser/cross-browser.spec.ts"], "engines": ["firefox", "webkit"] },
+    "health-smoke": { "match": ["tests/smoke-api.test.mjs"], "always": true }
+  },
+  "escalate-full": ["tests/**", "scripts/**", "vitest.config.ts", "playwright.config.ts", "prisma.config.ts", "prisma/**", "package.json", "package-lock.json", "next.config.ts", ".github/**", ".env*"]
+}

@@ -1,20 +1,30 @@
 # Local testing
 
-Run the complete local verification with:
+Run the daily fast verification with:
 
 ```powershell
 npm.cmd test
 ```
 
-The command runs domain unit tests, component tests, IndexedDB state tests, HTTP integration tests, and the Playwright browser suite across Chromium, Firefox, and WebKit. The integration runner uses a dedicated `cwfitness-test` Prisma local database on isolated ports. It starts that database, applies pending migrations, and stops the server after the run.
+`npm.cmd test` runs Vitest, the HTTP health smoke suite, and browser specs selected from the changed paths. The selector always includes the `health-smoke` and `browser-core` baseline groups. It reports `[selector] phase=<name> duration_ms=<ms>` for every stage and a final total; 10 minutes is currently a warning budget, not a gate.
+
+Run the complete local regression with:
+
+```powershell
+npm.cmd run test:full
+```
+
+This runs Vitest, the complete HTTP integration suite, and Chromium, Firefox, and WebKit. Its 25-minute budget is also a warning, not a gate. The integration runner uses a dedicated `cwfitness-test` Prisma local database on isolated ports. It starts that database, applies pending migrations, and stops the server after the run.
+
+`tests/selectors/path-groups.json` is the review surface for what the fast command selects. Add a source trigger and its browser spec to the same group's `match` array; see `tests/selectors/path-groups.schema.md` for the minimal schema. Changes to tests, scripts, test configuration, Prisma, package metadata, Next configuration, CI, or environment files intentionally escalate to a full run.
 
 The runner refuses to start when `http://127.0.0.1:3100` is already serving a Next.js instance, and it kills the whole `next dev` process tree when it finishes. A leftover dev server would otherwise silently receive the test traffic, which shows up as unrelated failures such as missing password-reset emails.
 
-Individual layers can be run with `npm.cmd run test:unit` or `npm.cmd run test:integration`.
+Individual layers can be run with `npm.cmd run test:unit` or `npm.cmd run test:integration`; the latter remains the legacy full integration entry point for external callers.
 
 `npm.cmd run test:coverage` runs the unit layer with V8 coverage over `lib/` and `app/`. Coverage counts only what vitest executes; the HTTP integration runner exercises `app/api/` against a live server and is invisible to it.
 
-Reports written by the `unit-test` skill are archived in `docs/testing-reports/`.
+Reports written by the `unit-test` skill are archived in `docs/testing-reports/<YYYY-MM-DD>-<topic>.md`; use this location when recording budget observations or test investigations.
 
 The browser layer runs three Playwright projects. `chromium` drives the locally installed Chrome channel and covers the complete flow set: account, Workout Plan, Workout Session, offline recording, history, progress, backup, and privacy. `firefox` and `webkit` only run the tests tagged `@cross-browser`, which are the flows the MVP spec requires on every engine: sign-in, Workout Session recording, and progress viewing. Install those two engines once with:
 
