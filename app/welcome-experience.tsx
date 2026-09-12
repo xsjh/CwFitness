@@ -53,7 +53,7 @@ export function WelcomeExperience() {
   }, []);
 
   return (
-    <main className="welcome-page">
+    <main className="welcome-page" data-force-motion="true">
       <div className="welcome-route-progress" aria-hidden="true"><span /></div>
       <section className="welcome-hero" id="top">
         <div className="welcome-hero-image" />
