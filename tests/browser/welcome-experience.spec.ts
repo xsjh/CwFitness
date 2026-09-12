@@ -12,4 +12,21 @@ test("the welcome hero is sharp on its first rendered frame", async ({ page }) =
   await expect(heroElements.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).filter))).resolves.toEqual([
     "none", "none", "none", "none", "none", "none", "none", "none",
   ]);
+  await expect(heroElements.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).opacity))).resolves.toEqual([
+    "0", "0", "0", "0", "0", "0", "0", "0",
+  ]);
+});
+
+test("the welcome hero completes its entrance when motion is forced", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+
+  const heroElements = page.locator(".welcome-hero-line, .welcome-nav-enter, .welcome-hero-actions > *");
+  await expect(heroElements.first()).toBeVisible();
+  await page.waitForTimeout(2_100);
+  await expect(heroElements.evaluateAll((elements) => elements.map((element) => ({
+    filter: getComputedStyle(element).filter,
+    opacity: getComputedStyle(element).opacity,
+    settled: ["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(getComputedStyle(element).transform),
+  })))).resolves.toEqual(Array.from({ length: 8 }, () => ({ filter: "none", opacity: "1", settled: true })));
 });
