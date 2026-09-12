@@ -39,6 +39,19 @@ describe("WelcomeExperience", () => {
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("is-visible");
   });
 
+  it("assigns distinct scroll-triggered motion treatments below the hero", () => {
+    render(<WelcomeExperience />);
+
+    const scrollTargets = document.querySelectorAll("[data-scroll-motion]");
+    expect(scrollTargets.length).toBeGreaterThanOrEqual(14);
+    expect(document.querySelector(".welcome-hero [data-scroll-motion]")).toBeNull();
+    expect(screen.getByLabelText("Workout Plan 示例").className).toContain("welcome-motion-tilt");
+    expect(screen.getByLabelText("Workout Session 示例").className).toContain("welcome-motion-session");
+    expect(screen.getByLabelText("Plan Progress 视觉示例").className).toContain("welcome-motion-progress");
+    expect(document.querySelectorAll(".welcome-motion-gallery")).toHaveLength(2);
+    expect(document.querySelectorAll(".welcome-motion-stage")).toHaveLength(3);
+  });
+
   it("uses Lenis for damped scroll inertia unless reduced motion is requested", () => {
     const originalMatchMedia = window.matchMedia;
     LenisMock.mockClear();
