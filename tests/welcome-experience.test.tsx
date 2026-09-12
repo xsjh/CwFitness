@@ -1,7 +1,14 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { WelcomeExperience } from "../app/welcome-experience";
+
+const { lenisInstance, LenisMock } = vi.hoisted(() => {
+  const lenisInstance = { destroy: vi.fn(), on: vi.fn(() => vi.fn()) };
+  return { lenisInstance, LenisMock: vi.fn(function LenisMock() { return lenisInstance; }) };
+});
+
+vi.mock("lenis", () => ({ default: LenisMock }));
 
 describe("WelcomeExperience", () => {
   it("guides a visitor from the public welcome page to free registration", () => {
@@ -30,5 +37,34 @@ describe("WelcomeExperience", () => {
     expect(screen.getByLabelText("Plan Progress 视觉示例").className).toContain("welcome-entrance");
     expect(screen.getByRole("img", { name: "深色健身房中的力量训练器械" }).closest(".welcome-image-scene")).toBeTruthy();
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("is-visible");
+  });
+
+  it("uses Lenis for damped scroll inertia unless reduced motion is requested", () => {
+    const originalMatchMedia = window.matchMedia;
+    LenisMock.mockClear();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: (query: string) => ({ matches: query !== "(prefers-reduced-motion: reduce)" }),
+    });
+
+    render(<WelcomeExperience />);
+    expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true });
+    expect(lenisInstance.on).toHaveBeenCalledWith("scroll", expect.any(Function));
+
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: originalMatchMedia });
+  });
+
+  it("keeps native scrolling when reduced motion is requested", () => {
+    const originalMatchMedia = window.matchMedia;
+    LenisMock.mockClear();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: (query: string) => ({ matches: query === "(prefers-reduced-motion: reduce)" }),
+    });
+
+    render(<WelcomeExperience />);
+    expect(LenisMock).not.toHaveBeenCalled();
+
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: originalMatchMedia });
   });
 });

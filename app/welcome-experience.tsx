@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import Lenis from "lenis";
 
 const imageSet = [
   {
@@ -41,10 +42,15 @@ export function WelcomeExperience() {
       document.documentElement.dataset.welcomeScrolled = progress > 0.018 ? "true" : "false";
     };
     updateScrollProgress();
-    window.addEventListener("scroll", updateScrollProgress, { passive: true });
     window.addEventListener("resize", updateScrollProgress);
+    const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const lenis = reducedMotion ? undefined : new Lenis({ autoRaf: true, anchors: true });
+    const stopObservingLenis = lenis?.on("scroll", updateScrollProgress);
+    if (!lenis) window.addEventListener("scroll", updateScrollProgress, { passive: true });
     return () => {
       observer?.disconnect();
+      stopObservingLenis?.();
+      lenis?.destroy();
       window.removeEventListener("scroll", updateScrollProgress);
       window.removeEventListener("resize", updateScrollProgress);
       delete document.documentElement.dataset.welcomeScrolled;

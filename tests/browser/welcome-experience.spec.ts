@@ -15,6 +15,11 @@ test("the welcome hero is sharp on its first rendered frame", async ({ page }) =
   await expect(heroElements.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).opacity))).resolves.toEqual([
     "0", "0", "0", "0", "0", "0", "0", "0",
   ]);
+
+  const cue = page.locator(".welcome-scroll-cue");
+  await expect(cue).toHaveCSS("animation-delay", "2.15s");
+  await cue.evaluate((element) => (element as HTMLElement).style.setProperty("animation", "none", "important"));
+  await expect(cue).toHaveCSS("opacity", "0");
 });
 
 test("the welcome hero completes its entrance when motion is forced", async ({ page }) => {
