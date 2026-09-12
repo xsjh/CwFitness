@@ -14,6 +14,9 @@ describe("WelcomeExperience", () => {
     expect(screen.getByRole("link", { name: "联系我们" })).toBeTruthy();
     expect(document.querySelector(".welcome-route-progress")).toBeTruthy();
     expect(document.querySelector(".welcome-hero-cadence")).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "免费开始训练" })[0].className).toContain("welcome-primary");
+    expect(document.querySelectorAll(".welcome-nav-enter")).toHaveLength(3);
+    expect(screen.getByText("向下探索").closest(".welcome-scroll-cue")).toBeTruthy();
   });
 
   it("uses product principles instead of fabricated testimonials or pricing", () => {
