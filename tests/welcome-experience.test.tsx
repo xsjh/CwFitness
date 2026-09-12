@@ -9,6 +9,9 @@ describe("WelcomeExperience", () => {
 
     expect(screen.getByRole("heading", { name: "训练，需要一个能长期坚持的系统。" })).toBeTruthy();
     expect(screen.getAllByRole("link", { name: "免费开始训练" })[0].getAttribute("href")).toBe("/auth?mode=sign-up");
+    expect(screen.getByRole("link", { name: "主页" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "关于" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "联系我们" })).toBeTruthy();
   });
 
   it("uses product principles instead of fabricated testimonials or pricing", () => {

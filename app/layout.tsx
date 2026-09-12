@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import "./welcome-motion.css";
 
 export const metadata: Metadata = {
   title: "CwFitness · 让训练持续发生",

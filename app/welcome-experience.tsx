@@ -39,18 +39,18 @@ export function WelcomeExperience() {
     <main className="welcome-page">
       <section className="welcome-hero" id="top">
         <div className="welcome-hero-image" />
-        <nav className="welcome-nav liquid-glass" aria-label="主导航">
+        <nav className="welcome-nav" aria-label="主导航">
           <Link className="welcome-brand" href="#top"><span aria-hidden="true" />CwFitness</Link>
           <div className="welcome-nav-links">
-            <a href="#method">方法</a><a href="#principles">原则</a><a href="#questions">常见问题</a>
+            <a href="#top">主页</a><a href="#method">关于</a><a href="#questions">联系我们</a>
           </div>
           <Link className="welcome-nav-cta" href="/auth">登录</Link>
         </nav>
         <div className="welcome-hero-content welcome-reveal is-visible">
-          <p className="welcome-kicker">你的训练，清晰可见</p>
-          <h1>训练，需要一个能长期坚持的系统。</h1>
-          <p>建立每周的 Workout Plan，专注完成今天的 Workout Session，再从每一次真实记录里看见进步。</p>
-          <div className="welcome-actions">
+          <p className="welcome-kicker welcome-hero-line">你的训练，清晰可见</p>
+          <h1 className="welcome-hero-line">训练，需要一个能长期坚持的系统。</h1>
+          <p className="welcome-hero-line">建立每周的 Workout Plan，专注完成今天的 Workout Session，再从每一次真实记录里看见进步。</p>
+          <div className="welcome-actions welcome-hero-line">
             <Link className="welcome-primary" href="/auth?mode=sign-up">免费开始训练 <span aria-hidden="true">↗</span></Link>
             <a className="welcome-text-link" href="#method">查看如何运作 <span aria-hidden="true">↓</span></a>
           </div>
