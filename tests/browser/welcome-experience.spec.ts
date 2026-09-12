@@ -23,7 +23,7 @@ test("the welcome hero is sharp on its first rendered frame", async ({ page }) =
   await expect(cue).toHaveCSS("filter", "blur(10px)");
 
   const heroImage = page.locator(".welcome-hero-image");
-  await expect(heroImage).toHaveCSS("animation-duration", "2.8s");
+  await expect(heroImage).toHaveCSS("animation-duration", "3.6s");
   await heroImage.evaluate((element) => (element as HTMLElement).style.setProperty("animation", "none", "important"));
   await expect(heroImage).toHaveCSS("transform", "matrix(1.08, 0, 0, 1.08, 0, 0)");
 

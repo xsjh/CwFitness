@@ -48,7 +48,7 @@ describe("WelcomeExperience", () => {
     });
 
     render(<WelcomeExperience />);
-    expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true, lerp: 0.075 });
+    expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true, lerp: 0.075, wheelMultiplier: 1.1 });
     expect(lenisInstance.on).toHaveBeenCalledWith("scroll", expect.any(Function));
 
     Object.defineProperty(window, "matchMedia", { configurable: true, value: originalMatchMedia });
@@ -63,7 +63,7 @@ describe("WelcomeExperience", () => {
     });
 
     render(<WelcomeExperience />);
-    expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true, lerp: 0.075 });
+    expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true, lerp: 0.075, wheelMultiplier: 1.1 });
 
     Object.defineProperty(window, "matchMedia", { configurable: true, value: originalMatchMedia });
   });

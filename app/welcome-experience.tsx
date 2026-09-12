@@ -45,7 +45,7 @@ export function WelcomeExperience() {
     window.addEventListener("resize", updateScrollProgress);
     const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const forceMotion = document.querySelector(".welcome-page")?.getAttribute("data-force-motion") === "true";
-    const lenis = reducedMotion && !forceMotion ? undefined : new Lenis({ autoRaf: true, anchors: true, lerp: 0.075 });
+    const lenis = reducedMotion && !forceMotion ? undefined : new Lenis({ autoRaf: true, anchors: true, lerp: 0.075, wheelMultiplier: 1.1 });
     const stopObservingLenis = lenis?.on("scroll", updateScrollProgress);
     if (!lenis) window.addEventListener("scroll", updateScrollProgress, { passive: true });
     return () => {
