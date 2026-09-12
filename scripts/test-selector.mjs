@@ -6,6 +6,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
@@ -45,9 +46,14 @@ function browserSpecs(manifest, groups) {
   return groups.flatMap((name) => manifest.groups[name]?.match ?? []).filter((path) => path.startsWith('tests/browser/') && path.endsWith('.spec.ts'));
 }
 
+function browserGrep(specs) {
+  return specs.map((path) => basename(path).replace(/[|\\{}()[\]^$+?.]/g, '\\$&')).join('|');
+}
+
 async function runPlaywright(project, specs) {
   if (specs.length === 0) return;
-  await run(node, [playwrightCli, 'test', '--project', project, ...[...new Set(specs)]]);
+  const uniqueSpecs = [...new Set(specs)];
+  await run(node, [playwrightCli, 'test', '--project', project, '--grep', browserGrep(uniqueSpecs), ...uniqueSpecs]);
 }
 
 async function loadManifest() {
