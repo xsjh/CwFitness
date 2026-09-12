@@ -32,13 +32,31 @@ export function WelcomeExperience() {
       { threshold: 0.13 },
     );
     document.querySelectorAll(".welcome-reveal").forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
+
+    const updateScrollProgress = () => {
+      const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = scrollableHeight > 0 ? Math.min(window.scrollY / scrollableHeight, 1) : 0;
+      document.documentElement.style.setProperty("--welcome-scroll-progress", progress.toFixed(4));
+      document.documentElement.dataset.welcomeScrolled = progress > 0.018 ? "true" : "false";
+    };
+    updateScrollProgress();
+    window.addEventListener("scroll", updateScrollProgress, { passive: true });
+    window.addEventListener("resize", updateScrollProgress);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", updateScrollProgress);
+      window.removeEventListener("resize", updateScrollProgress);
+      delete document.documentElement.dataset.welcomeScrolled;
+      document.documentElement.style.removeProperty("--welcome-scroll-progress");
+    };
   }, []);
 
   return (
     <main className="welcome-page">
+      <div className="welcome-route-progress" aria-hidden="true"><span /></div>
       <section className="welcome-hero" id="top">
         <div className="welcome-hero-image" />
+        <div className="welcome-hero-cadence" aria-hidden="true"><i /><i /><i /><i /><i /></div>
         <nav className="welcome-nav" aria-label="主导航">
           <Link className="welcome-brand" href="#top"><span aria-hidden="true" />CwFitness</Link>
           <div className="welcome-nav-links">
@@ -58,14 +76,14 @@ export function WelcomeExperience() {
         <p className="welcome-scroll-cue">向下探索 <span aria-hidden="true">↓</span></p>
       </section>
 
-      <section className="welcome-intro welcome-section welcome-reveal">
+      <section className="welcome-intro welcome-section welcome-reveal welcome-entrance">
         <p className="welcome-kicker">训练不是随机发生的</p>
         <div><h2>为今天留出明确的下一步。</h2><p>不是更复杂的表格，也不是更多分心的数据。CwFitness 让计划、执行和回顾自然连成一条线，让你在每次训练开始时都知道该做什么。</p></div>
       </section>
 
       <section className="welcome-feature welcome-section" id="method">
-        <div className="welcome-feature-copy welcome-reveal"><p className="welcome-index">01 / 03</p><p className="welcome-kicker">建立 Workout Plan</p><h2>先定义节奏，<br />再开始训练。</h2><p>用可重复的 Workout Day 安排每周。每个 Exercise、目标和组数都在开始前清楚就位。</p><a href="#flow">看看计划如何展开 <span aria-hidden="true">↘</span></a></div>
-        <div className="welcome-plan-visual liquid-glass welcome-reveal" id="flow" aria-label="Workout Plan 示例">
+        <div className="welcome-feature-copy welcome-reveal welcome-entrance"><p className="welcome-index">01 / 03</p><p className="welcome-kicker">建立 Workout Plan</p><h2>先定义节奏，<br />再开始训练。</h2><p>用可重复的 Workout Day 安排每周。每个 Exercise、目标和组数都在开始前清楚就位。</p><a href="#flow">看看计划如何展开 <span aria-hidden="true">↘</span></a></div>
+        <div className="welcome-plan-visual liquid-glass welcome-reveal welcome-entrance" id="flow" aria-label="Workout Plan 示例">
           <div className="welcome-visual-top"><span>本周计划</span><b>第 2 周</b></div>
           <div className="welcome-plan-day active"><span>01</span><strong>上肢力量</strong><em>5 个动作</em></div>
           <div className="welcome-plan-day"><span>02</span><strong>下肢力量</strong><em>4 个动作</em></div>
@@ -77,13 +95,13 @@ export function WelcomeExperience() {
       <section className="welcome-image-break"><img src={imageSet[0].src} alt={imageSet[0].alt} /><div><p className="welcome-kicker">有计划，也有余地</p><h2>把注意力留给<br />眼前这一组。</h2></div></section>
 
       <section className="welcome-feature welcome-feature-reverse welcome-section">
-        <div className="welcome-session-visual liquid-glass welcome-reveal" aria-label="Workout Session 示例"><div className="welcome-session-header"><span>进行中的训练</span><b>28:42</b></div><h3>杠铃深蹲</h3><p>4 组 × 8 次 · 75 kg</p><div className="welcome-set-row complete"><span>01</span><b>8 × 75</b><i>完成</i></div><div className="welcome-set-row complete"><span>02</span><b>8 × 75</b><i>完成</i></div><div className="welcome-set-row current"><span>03</span><b>8 × 75</b><i>记录本组</i></div></div>
-        <div className="welcome-feature-copy welcome-reveal"><p className="welcome-index">02 / 03</p><p className="welcome-kicker">完成 Workout Session</p><h2>记录你真正完成的训练。</h2><p>训练开始后，目标会固定下来。逐组记录重量、次数或时长，在节奏里完成，而不是在界面里周旋。</p></div>
+        <div className="welcome-session-visual liquid-glass welcome-reveal welcome-entrance" aria-label="Workout Session 示例"><div className="welcome-session-header"><span>进行中的训练</span><b>28:42</b></div><h3>杠铃深蹲</h3><p>4 组 × 8 次 · 75 kg</p><div className="welcome-set-row complete"><span>01</span><b>8 × 75</b><i>完成</i></div><div className="welcome-set-row complete"><span>02</span><b>8 × 75</b><i>完成</i></div><div className="welcome-set-row current"><span>03</span><b>8 × 75</b><i>记录本组</i></div></div>
+        <div className="welcome-feature-copy welcome-reveal welcome-entrance"><p className="welcome-index">02 / 03</p><p className="welcome-kicker">完成 Workout Session</p><h2>记录你真正完成的训练。</h2><p>训练开始后，目标会固定下来。逐组记录重量、次数或时长，在节奏里完成，而不是在界面里周旋。</p></div>
       </section>
 
       <section className="welcome-feature welcome-section">
-        <div className="welcome-feature-copy welcome-reveal"><p className="welcome-index">03 / 03</p><p className="welcome-kicker">查看 Plan Progress</p><h2>让长期变化，<br />有迹可循。</h2><p>只有已完成的 Workout Session 会成为进度的一部分。回看同一 Workout Plan 中的训练日期和 Exercise 趋势，判断下一步，而不是凭感觉猜测。</p></div>
-        <div className="welcome-progress-visual liquid-glass welcome-reveal" aria-label="Plan Progress 视觉示例"><div className="welcome-visual-top"><span>训练记录示例</span><b>你的节奏</b></div><div className="welcome-progress-stat"><strong>记录</strong><span>已完成的 Workout Session</span></div><div className="welcome-chart" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="welcome-progress-footer"><span>周一</span><span>周三</span><span>周五</span><span>今天</span></div></div>
+        <div className="welcome-feature-copy welcome-reveal welcome-entrance"><p className="welcome-index">03 / 03</p><p className="welcome-kicker">查看 Plan Progress</p><h2>让长期变化，<br />有迹可循。</h2><p>只有已完成的 Workout Session 会成为进度的一部分。回看同一 Workout Plan 中的训练日期和 Exercise 趋势，判断下一步，而不是凭感觉猜测。</p></div>
+        <div className="welcome-progress-visual liquid-glass welcome-reveal welcome-entrance" aria-label="Plan Progress 视觉示例"><div className="welcome-visual-top"><span>训练记录示例</span><b>你的节奏</b></div><div className="welcome-progress-stat"><strong>记录</strong><span>已完成的 Workout Session</span></div><div className="welcome-chart" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="welcome-progress-footer"><span>周一</span><span>周三</span><span>周五</span><span>今天</span></div></div>
       </section>
 
       <section className="welcome-gallery welcome-section"><div className="welcome-gallery-heading welcome-reveal"><p className="welcome-kicker">清醒地训练</p><h2>有结构，<br />才能更专注。</h2></div><div className="welcome-gallery-grid"><figure className="welcome-reveal"><img src={imageSet[1].src} alt={imageSet[1].alt} /></figure><figure className="welcome-reveal"><img src={imageSet[2].src} alt={imageSet[2].alt} /></figure></div></section>

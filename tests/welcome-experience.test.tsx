@@ -12,6 +12,8 @@ describe("WelcomeExperience", () => {
     expect(screen.getByRole("link", { name: "主页" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "关于" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "联系我们" })).toBeTruthy();
+    expect(document.querySelector(".welcome-route-progress")).toBeTruthy();
+    expect(document.querySelector(".welcome-hero-cadence")).toBeTruthy();
   });
 
   it("uses product principles instead of fabricated testimonials or pricing", () => {
@@ -20,5 +22,7 @@ describe("WelcomeExperience", () => {
     expect(screen.getByRole("heading", { name: "记录你真正完成的训练。" })).toBeTruthy();
     expect(screen.getAllByText("训练记录属于你").length).toBeGreaterThan(0);
     expect(screen.queryByText(/\$\d/)).toBeNull();
+    expect(screen.getByLabelText("Workout Plan 示例").className).toContain("welcome-entrance");
+    expect(screen.getByLabelText("Plan Progress 视觉示例").className).toContain("welcome-entrance");
   });
 });
