@@ -21,6 +21,17 @@ test("the welcome hero is sharp on its first rendered frame", async ({ page }) =
   await cue.evaluate((element) => (element as HTMLElement).style.setProperty("animation", "none", "important"));
   await expect(cue).toHaveCSS("opacity", "0");
   await expect(cue).toHaveCSS("filter", "blur(10px)");
+
+  const heroImage = page.locator(".welcome-hero-image");
+  await expect(heroImage).toHaveCSS("animation-duration", "2.8s");
+  await heroImage.evaluate((element) => (element as HTMLElement).style.setProperty("animation", "none", "important"));
+  await expect(heroImage).toHaveCSS("transform", "matrix(1.08, 0, 0, 1.08, 0, 0)");
+
+  const headingLineHeights = await page.locator(".welcome-hero h1, .welcome-page h2").evaluateAll((elements) => elements.map((element) => {
+    const styles = getComputedStyle(element);
+    return Number.parseFloat(styles.lineHeight) / Number.parseFloat(styles.fontSize);
+  }));
+  expect(headingLineHeights.every((lineHeight) => lineHeight >= 1)).toBe(true);
 });
 
 test("the welcome hero completes its entrance when motion is forced", async ({ page }) => {
