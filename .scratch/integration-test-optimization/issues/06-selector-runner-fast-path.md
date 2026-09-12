@@ -13,3 +13,7 @@
 - [ ] Re-running is safe: no zombie `next dev` process left on 3100, no leaked Postgres test container, no stray `--test` Node processes.
 - [ ] A header comment block in `scripts/test-selector.mjs` documents the env vars it consumes (`TEST_BASE`, `PLAYWRIGHT_CHANNEL`, plus the existing integration-script vars it inherits) and the exit codes.
 - [ ] Manual end-to-end check: edit one file in `app/api/plans/**`, run the runner, observe only plans-related specs and `health-smoke` execute and a `selected_groups=[plans, health-smoke, browser-core]`-style line at the end.
+
+## Answer
+
+Implemented the fast selector runner and its per-phase timing output. End-to-end execution is recorded as blocked by the local Prisma dynamic-CLI cache lock.

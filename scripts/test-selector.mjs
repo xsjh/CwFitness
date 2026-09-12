@@ -59,15 +59,19 @@ function changedPaths(base) {
 }
 
 async function main() {
-  const command = process.argv[2] ?? 'fast';
+  let command = process.argv[2] ?? 'fast';
   const force = process.argv.includes('--force-full');
+  const runFullOnEscalate = process.argv.includes('--run-full-on-escalate');
   if (!['fast', 'full'].includes(command)) throw new Error('usage: node scripts/test-selector.mjs <fast|full> [--force-full]');
   const manifest = await loadManifest();
   const base = process.env.TEST_BASE ?? 'HEAD~1';
   const resolved = command === 'full' ? { mode: 'full', groups: Object.keys(manifest.groups ?? {}), reason: 'requested-full' } : resolveGroups({ manifest, base, changedPaths: changedPaths(base), force });
   console.log(`[selector] mode=${resolved.mode} reason=${resolved.reason}`);
-  if (command === 'fast' && resolved.mode === 'full') { process.exitCode = 2; return; }
-  if (manifest instanceof Error) throw manifest;
+  if (command === 'fast' && resolved.mode === 'full') {
+    if (!runFullOnEscalate) { process.exitCode = 2; return; }
+    command = 'full';
+    resolved.groups = Object.keys(manifest.groups ?? {});
+  }
 
   const timings = [];
   const started = Date.now();

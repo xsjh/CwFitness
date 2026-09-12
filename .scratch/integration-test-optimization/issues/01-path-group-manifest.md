@@ -12,3 +12,7 @@
 - [x] Each group's `match` glob covers both the source files that trigger the group and the test specs that belong to it, so the same glob drives selection and discovery.
 - [x] Schema is documented inline (top-of-file comment or a sibling `path-groups.schema.md`) so a new contributor can add a group without reading the resolver code.
 - [x] Choosing JSON over TypeScript is a deliberate pick made in this ticket; the trade-off (no comments vs. no compile step) is recorded in the manifest's doc comment.
+
+## Answer
+
+Implemented `tests/selectors/path-groups.json` and its sibling schema documentation.

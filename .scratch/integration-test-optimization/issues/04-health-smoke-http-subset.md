@@ -11,3 +11,7 @@
 - [ ] Bootstraps (or reuses from `scripts/test-integration.mjs`) the same Postgres + `next dev` setup the existing HTTP suite uses, so smoke and full both speak to the same env shape.
 - [ ] Listed in the manifest's `health-smoke` group's `match` glob so it always runs on `fast`.
 - [ ] Independently runnable as `node --test tests/smoke-api.test.mjs` against a live test server for triage.
+
+## Answer
+
+Added `tests/smoke-api.test.mjs` with unauthenticated, registration/login, and empty-plan HTTP coverage.

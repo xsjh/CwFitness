@@ -11,3 +11,7 @@
 - [ ] Each test constructs an in-memory manifest fixture (no temp files, no real filesystem) so the resolver is exercised in isolation.
 - [ ] Tests run via the project's existing unit entry point (`npx vitest run`) and pass without flake.
 - [ ] Failing assertion message names the input shape and the expected `mode`/`reason` so a future regression is debuggable from the test name alone.
+
+## Answer
+
+Added the five specified in-memory resolver cases to the Vitest unit layer.

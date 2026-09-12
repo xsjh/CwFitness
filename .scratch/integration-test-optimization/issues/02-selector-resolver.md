@@ -13,3 +13,7 @@
 - [ ] `force: true` (the resolved form of the `--force-full` CLI flag) returns `{mode: "full", reason: "force-full"}` regardless of inputs.
 - [ ] For non-empty changes outside `escalate-full`, returns `{mode: "fast", groups: [...selected+always-on], reason: "selected"}` with groups in stable order.
 - [ ] Module performs no external I/O — operates entirely on the inputs passed in; the runner ticket (06) does the subprocess / git work.
+
+## Answer
+
+Implemented pure `resolveGroups` in `scripts/test-selector.mjs`; CLI I/O remains outside the resolver.

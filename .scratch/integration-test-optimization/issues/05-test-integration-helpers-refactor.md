@@ -11,3 +11,7 @@
 - [ ] The Windows kill-tree teardown that prevents the zombie `next dev` grandchild on port 3100 is preserved verbatim — no regressions to the regression test for the zombie-server bug.
 - [ ] No change to `package.json` scripts in this ticket; that happens in ticket 07.
 - [ ] Reads as a pure refactor: one reviewable diff, no new features, no signature changes that affect callers other than the new helper consumer (ticket 06).
+
+## Answer
+
+Extracted the existing database and server lifecycle into `scripts/test-env.mjs`, preserving Windows kill-tree teardown.

@@ -8,7 +8,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node scripts/test-selector.mjs fast",
+    "test": "vitest run && node scripts/test-selector.mjs fast --run-full-on-escalate",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "node scripts/test-integration.mjs",

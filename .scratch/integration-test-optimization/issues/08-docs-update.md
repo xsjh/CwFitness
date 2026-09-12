@@ -10,3 +10,7 @@
 - [ ] `AGENTS.md` mentions the manifest as the review surface for "what does `npm test` actually run for me?" and notes that the budgets are warnings today.
 - [ ] The manifest file itself (or its sibling doc) carries a schema comment showing the minimum shape, so a future contributor can add a group by editing one file.
 - [ ] Existing test-report guidance (`docs/testing-reports/<YYYY-MM-DD>-<topic>.md`) is referenced from the new section so the budget-watch and report-writing workflows tie together.
+
+## Answer
+
+Documented the fast/full commands, manifest, timings, warning budgets, and report location.

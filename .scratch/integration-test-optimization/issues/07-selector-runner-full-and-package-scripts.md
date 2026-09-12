@@ -12,3 +12,7 @@
 - [ ] `package.json` keeps `test:integration` (and `test:unit`, `test:coverage`) as aliases of their existing commands so any caller outside the repo still works.
 - [ ] A budget warning prints when total exceeds 10 minutes (fast) or 25 minutes (full), naming the slowest phase from the timing output. NOT a hard gate — gates come after two consecutive weeks of stability.
 - [ ] End-to-end verification, locally: `npm test` finishes well under the 10-minute budget on an empty-diff run; `npm run test:full` finishes well under 25 minutes; both leave the system clean (no zombie processes).
+
+## Answer
+
+Implemented the timed full path and `test`/`test:full` package commands. End-to-end execution is recorded as blocked by the local Prisma dynamic-CLI cache lock.
