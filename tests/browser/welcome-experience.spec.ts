@@ -47,3 +47,15 @@ test("the welcome hero completes its entrance when motion is forced", async ({ p
     settled: ["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(getComputedStyle(element).transform),
   })))).resolves.toEqual(Array.from({ length: 8 }, () => ({ filter: "none", opacity: "1", settled: true })));
 });
+
+test("below-the-fold sections never use a blur or opacity entrance", async ({ page }) => {
+  await page.goto("/");
+
+  const targets = page.locator("[data-scroll-motion]");
+  expect(await targets.count()).toBeGreaterThan(12);
+  const styles = await targets.evaluateAll((elements) => elements.map((element) => ({
+    filter: getComputedStyle(element).filter,
+    opacity: getComputedStyle(element).opacity,
+  })));
+  expect(styles.every((style) => style.filter === "none" && style.opacity === "1")).toBe(true);
+});

@@ -68,3 +68,7 @@ details.inline-editor,details.day-settings{position:relative}.inline-editor>summ
 .welcome-principle-track{animation:none;transform:translateX(calc(var(--welcome-principles-progress,0) * -50%));will-change:transform}
 @media(max-width:780px){.welcome-motion-tilt,.welcome-motion-tilt.is-visible,.welcome-motion-session,.welcome-motion-session.is-visible{transform:translateY(24px) scale(.97)}.welcome-motion-tilt.is-visible,.welcome-motion-session.is-visible{transform:none}}
 @media(prefers-reduced-motion:reduce){.welcome-page [data-scroll-motion],.welcome-page [data-scroll-motion].is-visible,.welcome-motion-tilt,.welcome-motion-tilt.is-visible,.welcome-motion-session,.welcome-motion-session.is-visible{opacity:1;clip-path:none;transform:none;transition:none;will-change:auto}.welcome-motion-faq details,.welcome-motion-faq.is-visible details{opacity:1;transform:none;transition:none}.welcome-principle-track{transform:none;will-change:auto}}
+
+/* Scroll motion must not inherit the legacy fade/blur entrance treatment. */
+.welcome-page [data-scroll-motion]{opacity:1!important;filter:none!important}
+.welcome-page .welcome-motion-faq details,.welcome-page .welcome-motion-session .welcome-set-row,.welcome-page .welcome-plan-visual .welcome-visual-orbit{opacity:1}

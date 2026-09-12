@@ -13,6 +13,12 @@
 - Workout Plan、Workout Session 与 Plan Progress 示意内容仍使用既有产品术语。
 - Hero 不属于滚动动效目标；其下方的内容拥有不同的滚动动效语义。
 - 页面在正常与强制动效场景下继续使用 Lenis 的滚动惯性配置。
+- 所有下方滚动目标在触发前均保持 `filter: none` 和 `opacity: 1`，不会继承模糊或淡入入场。
+
+## 浏览器回归
+
+**命令：** `node .\\node_modules\\@playwright\\test\\cli.js test welcome-experience.spec.ts --project=chromium`
+**结果：** 通过 3，失败 0
 
 ## 未覆盖
 
