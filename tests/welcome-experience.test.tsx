@@ -48,13 +48,13 @@ describe("WelcomeExperience", () => {
     });
 
     render(<WelcomeExperience />);
-    expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true });
+    expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true, lerp: 0.075 });
     expect(lenisInstance.on).toHaveBeenCalledWith("scroll", expect.any(Function));
 
     Object.defineProperty(window, "matchMedia", { configurable: true, value: originalMatchMedia });
   });
 
-  it("keeps native scrolling when reduced motion is requested", () => {
+  it("keeps Lenis active when this page explicitly forces motion", () => {
     const originalMatchMedia = window.matchMedia;
     LenisMock.mockClear();
     Object.defineProperty(window, "matchMedia", {
@@ -63,7 +63,7 @@ describe("WelcomeExperience", () => {
     });
 
     render(<WelcomeExperience />);
-    expect(LenisMock).not.toHaveBeenCalled();
+    expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true, lerp: 0.075 });
 
     Object.defineProperty(window, "matchMedia", { configurable: true, value: originalMatchMedia });
   });
