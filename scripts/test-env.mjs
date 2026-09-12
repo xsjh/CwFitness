@@ -49,7 +49,18 @@ export async function waitForServer(serverProcess) {
   }
   throw new Error('Next.js test server did not become ready within 30 seconds');
 }
-export async function startDatabase() { await rm(localEmailOutbox, { force: true }); await run(node, [prismaCli, 'dev', '--name', testServerName, '--port', '51213', '--db-port', '51214', '--shadow-db-port', '51215', '--detach']); }
+export async function startDatabase() {
+  const args = [prismaCli, 'dev', '--name', testServerName, '--port', '51213', '--db-port', '51214', '--shadow-db-port', '51215', '--detach'];
+  await rm(localEmailOutbox, { force: true });
+  // Prisma dev can retain its state lock briefly after `dev stop`. Retry for the same
+  // 30-second window used by the Next.js readiness check before surfacing the failure.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try { await run(node, args); return; } catch (error) {
+      if (attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+    }
+  }
+}
 export async function migrateDatabase() { await run(node, [prismaCli, 'migrate', 'deploy']); }
 export async function startServer() { await assertPortFree(); const server = spawn(node, [nextCli, 'dev', '--webpack', '-H', '127.0.0.1', '-p', '3100'], { cwd: root, env, stdio: 'inherit' }); await waitForServer(server); return server; }
 export async function stopDatabase() { await run(node, [prismaCli, 'dev', 'stop', testServerName]); }
