@@ -1,5 +1,5 @@
-import { AuthExperience } from "./auth-experience";
+import { WelcomeExperience } from "./welcome-experience";
 
 export default function Home() {
-  return <AuthExperience />;
+  return <WelcomeExperience />;
 }

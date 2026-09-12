@@ -14,8 +14,8 @@ async function errorMessage(response: Response) {
   return body?.message ?? "操作没有完成，请稍后重试。";
 }
 
-export function AuthExperience() {
-  const [mode, setMode] = useState<AuthMode>("sign-in");
+export function AuthExperience({ initialMode = "sign-in" }: { initialMode?: AuthMode }) {
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [user, setUser] = useState<User | null>(null);
