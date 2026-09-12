@@ -3,9 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 
 import { WelcomeExperience } from "../app/welcome-experience";
 
-const { lenisInstance, LenisMock } = vi.hoisted(() => {
+const { lenisInstance, LenisMock, observerInstances, IntersectionObserverMock } = vi.hoisted(() => {
   const lenisInstance = { destroy: vi.fn(), on: vi.fn(() => vi.fn()) };
-  return { lenisInstance, LenisMock: vi.fn(function LenisMock() { return lenisInstance; }) };
+  const observerInstances: Array<{ callback: (entries: unknown[]) => void; options?: unknown; observed: Element[] }> = [];
+  const IntersectionObserverMock = vi.fn(function IntersectionObserverMock(
+    callback: (entries: unknown[]) => void,
+    options?: unknown,
+  ) {
+    const record = { callback, options, observed: [] as Element[] };
+    observerInstances.push(record);
+    return {
+      observe: (element: Element) => record.observed.push(element),
+      disconnect: vi.fn(),
+      unobserve: vi.fn(),
+      takeRecords: vi.fn(() => []),
+    };
+  });
+  return { lenisInstance, LenisMock: vi.fn(function LenisMock() { return lenisInstance; }), observerInstances, IntersectionObserverMock };
 });
 
 vi.mock("lenis", () => ({ default: LenisMock }));
@@ -79,5 +93,61 @@ describe("WelcomeExperience", () => {
     expect(LenisMock).toHaveBeenCalledWith({ autoRaf: true, anchors: true, lerp: 0.075, wheelMultiplier: 1.1 });
 
     Object.defineProperty(window, "matchMedia", { configurable: true, value: originalMatchMedia });
+  });
+
+  it("waits until a section is nearly half visible before its scroll entrance fires", () => {
+    // At 0.13 the reveal started as soon as a section poked over the fold, so it had already
+    // finished playing by the time the section was properly in view. The threshold has to stay
+    // high enough that the entrance lands while the section is actually being read.
+    const originalIO = globalThis.IntersectionObserver;
+    observerInstances.length = 0;
+    Object.defineProperty(globalThis, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: IntersectionObserverMock,
+    });
+
+    render(<WelcomeExperience />);
+
+    expect(observerInstances).toHaveLength(1);
+    expect(observerInstances[0].options).toEqual({ threshold: 0.45 });
+    expect(observerInstances[0].observed).toHaveLength(document.querySelectorAll("[data-scroll-motion]").length);
+    expect(observerInstances[0].observed.length).toBeGreaterThanOrEqual(14);
+
+    Object.defineProperty(globalThis, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: originalIO,
+    });
+  });
+
+  it("only reveals a section once the observer reports it as intersecting", () => {
+    const originalIO = globalThis.IntersectionObserver;
+    observerInstances.length = 0;
+    Object.defineProperty(globalThis, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: IntersectionObserverMock,
+    });
+
+    render(<WelcomeExperience />);
+
+    const targets = [...document.querySelectorAll<HTMLElement>("[data-scroll-motion]")];
+    // Nothing is revealed by default now that an observer exists: the CSS entrance stays
+    // pending until the callback says the section is far enough into the viewport.
+    expect(targets.some((target) => target.classList.contains("is-visible"))).toBe(false);
+
+    const observer = observerInstances[0];
+    observer.callback([{ isIntersecting: false, target: targets[0] }]);
+    expect(targets[0].classList.contains("is-visible")).toBe(false);
+
+    observer.callback([{ isIntersecting: true, target: targets[0] }]);
+    expect(targets[0].classList.contains("is-visible")).toBe(true);
+
+    Object.defineProperty(globalThis, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: originalIO,
+    });
   });
 });

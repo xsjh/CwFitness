@@ -60,3 +60,56 @@ test("below-the-fold sections never use a blur or opacity entrance", async ({ pa
   })));
   expect(styles.every((style) => style.filter === "none" && style.opacity === "1")).toBe(true);
 });
+
+test("a section stays unrevealed until it is well inside the viewport", async ({ page }) => {
+  await page.goto("/");
+
+  // The hero is short and starts in view; the sections below it must not have fired yet.
+  const firstSection = page.locator("[data-scroll-motion]").first();
+  await expect(firstSection).not.toHaveClass(/is-visible/);
+
+  // Walk down in viewport-sized steps and record, for the first section, the scroll position at
+  // which it finally flips to visible. A high minimum-visible threshold means it cannot fire
+  // until a large share of the section is on screen, not the moment its top edge crosses the fold.
+  const reveal = await firstSection.evaluate(async (element) => {
+    const viewportHeight = window.innerHeight;
+    const height = document.documentElement.scrollHeight;
+    for (let y = 0; y <= height; y += 40) {
+      window.scrollTo(0, y);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(null))));
+      if (element.classList.contains("is-visible")) {
+        const top = element.getBoundingClientRect().top;
+        return { scrollY: Math.round(window.scrollY), top: Math.round(top), ratio: (viewportHeight - top) / element.getBoundingClientRect().height };
+      }
+    }
+    return null;
+  });
+
+  expect(reveal).not.toBeNull();
+  // When it fires, roughly half the section has to be inside the viewport (and its top edge is
+  // therefore well below the fold, not just peeking over it).
+  expect(reveal!.ratio).toBeGreaterThanOrEqual(0.4);
+  expect(reveal!.top).toBeGreaterThan(0);
+});
+
+test("every scroll-motion section eventually reveals once the page is scrolled through", async ({ page }) => {
+  await page.goto("/");
+
+  const targets = page.locator("[data-scroll-motion]");
+  const total = await targets.count();
+  expect(total).toBeGreaterThan(12);
+
+  const revealed = await page.evaluate(async () => {
+    const elements = [...document.querySelectorAll("[data-scroll-motion]")];
+    const height = document.documentElement.scrollHeight;
+    for (let y = 0; y <= height; y += 80) {
+      window.scrollTo(0, y);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(null))));
+    }
+    return elements.filter((element) => element.classList.contains("is-visible")).length;
+  });
+
+  // A ratio the browser can never satisfy would leave sections permanently blank, which is the
+  // failure mode a threshold change can introduce.
+  expect(revealed).toBe(total);
+});

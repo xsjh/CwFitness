@@ -30,7 +30,11 @@ export function WelcomeExperience() {
     const revealElements = document.querySelectorAll<HTMLElement>("[data-scroll-motion]");
     const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(
       (entries) => entries.forEach((entry) => entry.isIntersecting && entry.target.classList.add("is-visible")),
-      { threshold: 0.13 },
+      // 0.45 of the element has to be inside the viewport before the entrance fires. At 0.13 the
+      // reveal started as soon as a section poked over the fold, so it finished playing while the
+      // section was still climbing into view. Every section is shorter than the viewport, so this
+      // ratio is always reachable.
+      { threshold: 0.45 },
     );
     if (observer) revealElements.forEach((element) => observer.observe(element));
     else revealElements.forEach((element) => element.classList.add("is-visible"));
