@@ -62,7 +62,7 @@ describe("WelcomeExperience", () => {
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("welcome-motion-tilt");
     expect(screen.getByLabelText("Workout Session 示例").className).toContain("welcome-motion-session");
     expect(screen.getByLabelText("Plan Progress 视觉示例").className).toContain("welcome-motion-progress");
-    expect(document.querySelectorAll(".welcome-motion-gallery")).toHaveLength(4);
+    expect(document.querySelectorAll(".welcome-motion-gallery")).toHaveLength(3);
     expect(document.querySelectorAll(".welcome-motion-stage")).toHaveLength(3);
   });
 
@@ -332,7 +332,7 @@ describe("WelcomeExperience", () => {
     const row = document.querySelector<HTMLElement>("[data-gallery-row]");
     expect(row).toBeTruthy();
     const frames = [...row!.querySelectorAll<HTMLElement>("figure")];
-    expect(frames).toHaveLength(4);
+    expect(frames).toHaveLength(3);
 
     // Each frame carries its own authored resting weight, so the row is staggered by design rather
     // than by a uniform share.
@@ -348,7 +348,7 @@ describe("WelcomeExperience", () => {
     hovered.dispatchEvent(new MouseEvent("pointermove", { bubbles: true }));
     const grown = Number.parseFloat(hovered.style.getPropertyValue("--gallery-grow"));
     expect(grown).toBeGreaterThan(rest[2]);
-    for (const index of [0, 1, 3]) {
+    for (const index of [0, 1]) {
       expect(Number.parseFloat(frames[index].style.getPropertyValue("--gallery-grow"))).toBeLessThan(rest[index]);
     }
     expect(total(frames)).toBeCloseTo(1, 6);

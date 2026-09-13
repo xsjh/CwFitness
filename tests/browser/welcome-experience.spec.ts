@@ -265,10 +265,26 @@ test("the gallery grows the hovered frame and squeezes the other three", async (
   const widths = () => row.evaluate((element) =>
     [...element.querySelectorAll(":scope > figure")].map((frame) => +frame.getBoundingClientRect().width.toFixed(1)));
 
+  // Park the pointer away from the row before the baseline reading. `page.mouse.move(0, 0)` below
+  // scrolls the page back to the top, and the row is a percentage of its own container, so a
+  // baseline taken mid-page would be measured against a different row width than the released one.
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(300);
+
   const rest = await widths();
-  expect(rest).toHaveLength(4);
+  expect(rest).toHaveLength(3);
   // Fill the row exactly, and stagger: no two frames share a width at rest.
   expect(new Set(rest).size).toBeGreaterThan(1);
+  // Squeezing presupposes there is something to squeeze: the row has to be wider than a resting
+  // frame's own span, or the only way a frame can grow is for the others to shrink to nothing.
+  const tightest = await row.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const gap = Number.parseFloat(style.columnGap || "0");
+    const narrowest = Math.min(...[...element.querySelectorAll(":scope > figure")]
+      .map((frame) => frame.getBoundingClientRect().width));
+    return narrowest * (element.children.length - 1) + gap * (element.children.length - 2);
+  });
+  expect(tightest).toBeGreaterThan(140);
 
   const hover = async (index: number) => {
     const point = await row.evaluate((element, i) => {
@@ -280,9 +296,11 @@ test("the gallery grows the hovered frame and squeezes the other three", async (
     return widths();
   };
 
+  const others = rest.map((_, index) => index).filter((index) => index !== 0);
+
   const hoveredFirst = await hover(0);
   expect(hoveredFirst[0]).toBeGreaterThan(rest[0]);
-  for (const index of [1, 2, 3]) expect(hoveredFirst[index]).toBeLessThan(rest[index]);
+  for (const index of others) expect(hoveredFirst[index]).toBeLessThan(rest[index]);
   expect(hoveredFirst[0]).toBeGreaterThan(Math.max(...hoveredFirst.slice(1)));
 
   // The total is preserved, which is what makes it read as squeezing rather than as a scale-up.
@@ -294,17 +312,17 @@ test("the gallery grows the hovered frame and squeezes the other three", async (
     return element.getBoundingClientRect().width - gap * (element.children.length - 1);
   });
   const total = (list: number[]) => list.reduce((sum, width) => sum + width, 0);
-  // Sub-pixel rounding across four flex tracks costs a few px; the contract is that nothing is
+  // Sub-pixel rounding across the flex tracks costs a few px; the contract is that nothing is
   // lost or created, not that the sum is exact to the pixel.
   expect(Math.abs(total(hoveredFirst) - budget)).toBeLessThan(8);
 
   // Every frame has to be growable, and the hovered one has to end up the widest in the row — that
   // is what makes the gesture read as "this one took the space the others gave up". A fixed growth
   // multiple would be false for the frame that is already widest at rest.
-  for (let index = 0; index < 4; index++) {
+  for (let index = 0; index < rest.length; index++) {
     const hovered = await hover(index);
     expect(hovered[index]).toBeGreaterThan(rest[index]);
-    for (let other = 0; other < 4; other++) {
+    for (let other = 0; other < hovered.length; other++) {
       if (other === index) continue;
       expect(hovered[index]).toBeGreaterThan(hovered[other]);
     }
@@ -314,5 +332,5 @@ test("the gallery grows the hovered frame and squeezes the other three", async (
   await page.mouse.move(0, 0);
   await page.waitForTimeout(1300);
   const released = await widths();
-  for (let index = 0; index < 4; index++) expect(Math.abs(released[index] - rest[index])).toBeLessThan(6);
+  for (let index = 0; index < rest.length; index++) expect(Math.abs(released[index] - rest[index])).toBeLessThan(6);
 });
