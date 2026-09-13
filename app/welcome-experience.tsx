@@ -6,8 +6,8 @@ import Lenis from "lenis";
 
 const imageSet = [
   {
-    src: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1600&q=85",
-    alt: "深色健身房中的力量训练器械",
+    src: "https://images.unsplash.com/photo-1571019613576-2b22c76fd955?auto=format&fit=crop&w=1600&q=85",
+    alt: "健身房训练者用腹肌轮专注完成训练动作",
   },
   {
     src: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=1600&q=85",
