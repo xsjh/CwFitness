@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-db.mjs --quiet && next dev",
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -14,7 +14,9 @@
     "test:integration": "node scripts/test-integration.mjs",
     "test:full": "vitest run && node scripts/test-selector.mjs full",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "db:dev": "node scripts/dev-db.mjs",
+    "db:status": "node scripts/dev-db.mjs --status"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "1.7.4",
