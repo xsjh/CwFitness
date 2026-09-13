@@ -30,11 +30,10 @@ export function WelcomeExperience() {
     const revealElements = document.querySelectorAll<HTMLElement>("[data-scroll-motion]");
     const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(
       (entries) => entries.forEach((entry) => entry.isIntersecting && entry.target.classList.add("is-visible")),
-      // 0.45 of the element has to be inside the viewport before the entrance fires. At 0.13 the
-      // reveal started as soon as a section poked over the fold, so it finished playing while the
-      // section was still climbing into view. Every section is shorter than the viewport, so this
-      // ratio is always reachable.
-      { threshold: 0.45 },
+      // The entrance should not have started before the reader arrives. 0.55 of a section plus a
+      // -10% bottom margin pushes the trigger past the middle of the viewport. Every section is
+      // shorter than the viewport, so both bounds stay reachable at desktop and mobile sizes.
+      { threshold: 0.55, rootMargin: "0px 0px -10% 0px" },
     );
     if (observer) revealElements.forEach((element) => observer.observe(element));
     else revealElements.forEach((element) => element.classList.add("is-visible"));
@@ -60,12 +59,132 @@ export function WelcomeExperience() {
     const lenis = reducedMotion && !forceMotion ? undefined : new Lenis({ autoRaf: true, anchors: true, lerp: 0.075, wheelMultiplier: 1.1 });
     const stopObservingLenis = lenis?.on("scroll", updateScrollProgress);
     if (!lenis) window.addEventListener("scroll", updateScrollProgress, { passive: true });
+
+    // Pointer-driven pose for the three liquid-glass showcases.
+    //
+    // The pose is written as custom properties rather than as `transform` on purpose: an inline
+    // transform outranks every rule in the stylesheet, so writing one here would wipe the scroll
+    // entrance the panel just played. The stylesheet composes the variables instead.
+    //
+    // Follow uses the frame-rate-independent form so the panels feel identical at 30 and 144 Hz.
+    // Each panel reads the pointer as an offset from its OWN centre, which is what separates the
+    // three: with a shared viewport reading all three would sit at the same angle and read as one
+    // rigid prop. Angles stay inside the 12-16deg readable band; past that the type starts to shear.
+    const tiltPanels = [...document.querySelectorAll<HTMLElement>(".welcome-motion-tilt")];
+    const MAX_YAW = 7;
+    const MAX_PITCH = 5;
+    const MAX_SHIFT = 6;
+    const FOLLOW_K = 7;
+    const pointer = { x: -1, y: -1 };
+    let pointerInside = false;
+    const poses = new WeakMap<HTMLElement, { yaw: number; pitch: number; shiftX: number; shiftY: number }>();
+    let tiltFrame = 0;
+    let lastTiltTime = 0;
+    let tiltRunning = false;
+    const motionAllowed = !reducedMotion || forceMotion;
+
+    const projectTilt = (time: number) => {
+      // Clamp on both ends. A negative dt is reachable whenever the rAF timestamp and the
+      // performance.now() that seeded lastTiltTime come from different clocks: alpha then flips
+      // sign, and the follow diverges exponentially instead of converging. Capping the step also
+      // stops a backgrounded tab (one huge dt) from snapping the pose in a single frame.
+      const dt = Math.min(Math.max((time - lastTiltTime) / 1000, 0), 0.05);
+      lastTiltTime = time;
+      const alpha = 1 - Math.exp(-FOLLOW_K * dt);
+      let settled = true;
+
+      // Read every rect before writing any property. Interleaving the two forces a synchronous
+      // layout on each write, because the next read cannot be served from the stale one.
+      const viewportHeight = window.innerHeight;
+      const boxes = tiltPanels.map((panel) => panel.getBoundingClientRect());
+
+      for (let index = 0; index < tiltPanels.length; index++) {
+        const panel = tiltPanels[index];
+        const box = boxes[index];
+        const pose = poses.get(panel) ?? { yaw: 0, pitch: 0, shiftX: 0, shiftY: 0 };
+        // A panel that is off screen has no pointer relationship worth computing, and its rect would
+        // clamp to the extreme and sit there. Only the panels actually in view take a pose.
+        const onScreen = box.bottom > -240 && box.top < viewportHeight + 240;
+        // -1 at the panel's left/top edge, +1 at its right/bottom edge. Reading from each panel's own
+        // centre is what separates the three: a shared viewport reading put them all at one angle.
+        const offsetX = onScreen && pointerInside && box.width > 0 ? (pointer.x - (box.x + box.width / 2)) / (box.width * 0.9) : 0;
+        const offsetY = onScreen && pointerInside && box.height > 0 ? (pointer.y - (box.y + box.height / 2)) / (box.height * 0.9) : 0;
+        const clampedX = Math.max(-1.4, Math.min(1.4, offsetX));
+        const clampedY = Math.max(-1.4, Math.min(1.4, offsetY));
+        const target = {
+          yaw: clampedX * MAX_YAW,
+          // Pointer above the panel's centre has to tip the top edge toward the viewer, which is a
+          // negative rotateX; the yaw term already carries the right sign for the same gesture.
+          pitch: clampedY * MAX_PITCH,
+          shiftX: clampedX * MAX_SHIFT,
+          shiftY: clampedY * MAX_SHIFT * 0.6,
+        };
+        pose.yaw += (target.yaw - pose.yaw) * alpha;
+        pose.pitch += (target.pitch - pose.pitch) * alpha;
+        pose.shiftX += (target.shiftX - pose.shiftX) * alpha;
+        pose.shiftY += (target.shiftY - pose.shiftY) * alpha;
+        poses.set(panel, pose);
+
+        panel.style.setProperty("--tilt-yaw", `${pose.yaw.toFixed(3)}deg`);
+        panel.style.setProperty("--tilt-pitch", `${pose.pitch.toFixed(3)}deg`);
+        panel.style.setProperty("--tilt-shift-x", `${pose.shiftX.toFixed(2)}px`);
+        panel.style.setProperty("--tilt-shift-y", `${pose.shiftY.toFixed(2)}px`);
+        // The glass highlight reflects from the side the panel leans away from, which is what makes
+        // the surface read as glass catching a light rather than a sticker with a gradient on it.
+        const lightX = 100 - ((pose.yaw / MAX_YAW) * 0.5 + 0.5) * 100;
+        const lightY = ((pose.pitch / MAX_PITCH) * 0.5 + 0.5) * 100;
+        panel.style.setProperty("--glass-light-x", `${lightX.toFixed(1)}%`);
+        panel.style.setProperty("--glass-light-y", `${lightY.toFixed(1)}%`);
+
+        if (Math.abs(target.yaw - pose.yaw) > 0.01 || Math.abs(target.pitch - pose.pitch) > 0.01
+          || Math.abs(target.shiftX - pose.shiftX) > 0.05 || Math.abs(target.shiftY - pose.shiftY) > 0.05) {
+          settled = false;
+        }
+      }
+
+      if (!settled || pointerInside) { tiltFrame = requestAnimationFrame(projectTilt); return; }
+      tiltFrame = 0;
+      tiltRunning = false;
+    };
+
+    const startTilt = () => {
+      if (!motionAllowed || tiltRunning || tiltPanels.length === 0) return;
+      tiltRunning = true;
+      lastTiltTime = performance.now();
+      tiltFrame = requestAnimationFrame(projectTilt);
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+      pointerInside = true;
+      for (const panel of tiltPanels) panel.dataset.tiltLive = "";
+      startTilt();
+    };
+    // A panel left frozen wherever the pointer happened to exit is a panel that lies about being
+    // interactive. Release it back to the resting pose instead.
+    const releaseTilt = () => { pointerInside = false; startTilt(); };
+
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    document.addEventListener("pointerleave", releaseTilt);
+    window.addEventListener("blur", releaseTilt);
+
     return () => {
       observer?.disconnect();
       stopObservingLenis?.();
       lenis?.destroy();
       window.removeEventListener("scroll", updateScrollProgress);
       window.removeEventListener("resize", updateScrollProgress);
+      window.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerleave", releaseTilt);
+      window.removeEventListener("blur", releaseTilt);
+      if (tiltFrame) cancelAnimationFrame(tiltFrame);
+      for (const panel of tiltPanels) {
+        for (const property of ["--tilt-yaw", "--tilt-pitch", "--tilt-shift-x", "--tilt-shift-y", "--glass-light-x", "--glass-light-y"]) {
+          panel.style.removeProperty(property);
+        }
+        delete panel.dataset.tiltLive;
+      }
       delete document.documentElement.dataset.welcomeScrolled;
       document.documentElement.style.removeProperty("--welcome-scroll-progress");
     };
