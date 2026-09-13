@@ -143,6 +143,18 @@ test("the forced-motion welcome page keeps its principle marquee when reduced mo
   await expect(page.locator(".welcome-principle-track")).toHaveCSS("animation-name", "welcome-marquee");
 });
 
+test("principle cards start their reveal only when the forced-motion viewport enters view", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+
+  const viewport = page.locator(".welcome-principle-viewport");
+  const firstCard = viewport.locator(".welcome-principle-card").first();
+  await expect(firstCard).toHaveCSS("animation-name", "none");
+  await viewport.evaluate((element) => element.classList.add("is-visible"));
+  await expect(firstCard).toHaveCSS("animation-name", "welcome-principle-card-in");
+  await expect(viewport).toHaveCSS("clip-path", "inset(0px)");
+});
+
 // The tilt writes custom properties, never `transform`, so reading the variables back would pass
 // even if a stylesheet rule or a CSS animation were overriding the transform that actually paints.
 // These read the projected matrix instead, and use screenshot bytes as the tie-breaker for
