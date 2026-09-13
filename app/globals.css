@@ -80,13 +80,20 @@ details.inline-editor,details.day-settings{position:relative}.inline-editor>summ
 /* Scroll-coupled ribbons inside the principles section. Two horizontal strips of short phrases
    bracket the principle cards; their translate3d is written every scroll tick by JS so the page's
    vertical scroll becomes the strip's horizontal motion. The track holds three copies of the same
-   phrase list, so any scroll position still lands on a duplicate and never reveals a seam. */
-.welcome-scroll-ribbon{position:relative;width:100%;overflow:hidden;color:inherit;font-size:clamp(15px,1.45vw,21px);font-weight:780;letter-spacing:.14em;mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent);-webkit-mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent);isolation:isolate}
-.welcome-scroll-ribbon-top{margin-bottom:clamp(48px,6vw,84px)}
-.welcome-scroll-ribbon-bottom{margin-top:clamp(48px,6vw,84px)}
+   phrase list, so any scroll position still lands on a duplicate and never reveals a seam.
+
+   position: fixed pins the ribbon to the top of the viewport (instead of letting the page scroll
+   it off-screen) so the reader sees the strip's horizontal motion every time they scroll. Sticky
+   was the natural first choice, but the .welcome-page wrapper sets overflow-x: hidden — that
+   makes the wrapper the scroll container for sticky purposes, and Lenis writes its scroll into
+   window.scrollY, so sticky in the wrapper never engages. Fixed pins to the viewport directly
+   and reads scrollY via JS regardless of which container the layout thinks owns the scroll.
+*/
+.welcome-scroll-ribbon{position:fixed;top:0;left:0;right:0;z-index:5;width:100%;overflow:hidden;color:inherit;font-size:clamp(15px,1.45vw,21px);font-weight:780;letter-spacing:.14em;mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent);-webkit-mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent);isolation:isolate;pointer-events:none}
+.welcome-scroll-ribbon-bottom{top:auto;bottom:0}
 .welcome-scroll-ribbon-track{display:flex;width:max-content;padding-block:clamp(11px,1.2vw,16px);will-change:transform;transform:translate3d(0,0,0)}
 .welcome-scroll-ribbon-segment{display:inline-flex;align-items:center;gap:clamp(24px,3vw,44px);padding-inline:clamp(24px,3vw,44px);white-space:nowrap}
 .welcome-scroll-ribbon-dot{font-style:normal;font-size:.85em;opacity:.55}
 .welcome-scroll-ribbon-phrase{display:inline-block;white-space:nowrap}
-@media(max-width:780px){.welcome-scroll-ribbon-track{padding-block:9px}.welcome-scroll-ribbon-top{margin-bottom:36px}.welcome-scroll-ribbon-bottom{margin-top:36px}.welcome-scroll-ribbon-segment{gap:18px;padding-inline:18px}}
+@media(max-width:780px){.welcome-scroll-ribbon-track{padding-block:9px}.welcome-scroll-ribbon-segment{gap:18px;padding-inline:18px}}
 @media(prefers-reduced-motion:reduce){.welcome-scroll-ribbon-track{transform:none!important;will-change:auto}}

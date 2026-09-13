@@ -73,7 +73,7 @@ const ribbonBottomPhrases = [
 const ribbonCopies = 3;
 
 const renderRibbon = (phrases: readonly string[]) => (
-  <div className="welcome-scroll-ribbon-track" data-scroll-ribbon-track>
+  <div className="welcome-scroll-ribbon-track" data-scroll-ribbon data-scroll-ribbon-track>
     {Array.from({ length: ribbonCopies }).map((_, copy) => (
       <span
         className="welcome-scroll-ribbon-segment"
@@ -121,49 +121,62 @@ export function WelcomeExperience() {
     const imageBreak = document.querySelector<HTMLElement>(".welcome-image-break");
 
     // Scroll-coupled ribbons: the page's vertical scroll becomes the horizontal motion of the two
-    // text strips inside the principles section. scrollY's delta accumulates into a single offset,
-    // and the rendered translate3d is that offset mod the segment width — so the strip reads as a
-    // continuous flow that picks up where the wheel left it, instead of a one-shot move. Top strip
-    // drifts left as scrollY grows, bottom strip drifts right, so the principle cards sit inside
-    // a pair of bands that pull in opposite directions as the page scrolls.
+    // text strips inside the principles section. A rAF loop reads window.scrollY each frame and
+    // writes translate3d directly. The track renders three copies of the phrase list, so its
+    // scrollWidth is ~3× one segment; rendering the offset mod segmentWidth keeps the visible
+    // translate3d pinned inside one segment so the strip reads as a continuous flow regardless
+    // of how far the page scrolls. With identical content in every segment, the mod wrap is
+    // visually seamless — the strip looks like it loops forever even though the transform itself
+    // stays inside a small range.
+    //
+    // position: fixed (set in CSS) keeps the ribbon at the top of the viewport, so the reader
+    // sees the horizontal motion every time they scroll instead of having the page itself scroll
+    // the strip off-screen. An IntersectionObserver hides both ribbons while the principles
+    // section is fully off-screen, so the strips don't bleed into the hero or final sections.
     const ribbonTracks = [...document.querySelectorAll<HTMLElement>("[data-scroll-ribbon-track]")];
+    const ribbonContainers = [...document.querySelectorAll<HTMLElement>("[data-scroll-ribbon]")];
     // Scroll-pixel-to-horizontal-pixel ratio. ~0.6 reads as a noticeable flow on a long landing
     // page; past ~1.0 a tall scroll starts outrunning the eye and the strips look frantic.
     const RIBBON_SCROLL_COUPLING = 0.6;
-    // Each scroll event feeds a delta; the running offset stays signed so an upward scroll unwinds
-    // the strip instead of sticking at the bottom of the loop. Segment width comes from the live
-    // layout: three copies of the phrase list are rendered, so scrollWidth / 3 is one loop.
-    let ribbonAccumulatedOffset = window.scrollY * RIBBON_SCROLL_COUPLING;
-    let lastRibbonScrollY = window.scrollY;
+    let ribbonRaf = 0;
+    let ribbonVisible = false;
     const applyRibbonTransform = () => {
-      if (ribbonTracks.length === 0) return;
-      const segmentWidth = ribbonTracks[0].scrollWidth / 3;
-      // segmentWidth is 0 on the first frame before layout; bail and let the next tick paint.
-      if (segmentWidth <= 0) return;
+      if (ribbonTracks.length === 0 || !ribbonVisible) return;
+      const y = window.scrollY * RIBBON_SCROLL_COUPLING;
       for (let index = 0; index < ribbonTracks.length; index++) {
-        // -1 for the top strip (drift left as scrollY grows), +1 for the bottom strip (drift right).
-        const direction = index === 0 ? -1 : 1;
-        // The double-mod trick keeps the result non-negative even when the offset is negative
-        // (scrolling back up); without it a JS modulo on a negative dividend returns a negative
-        // remainder and the strip jumps to the wrong end of its loop.
-        const signed = ribbonAccumulatedOffset * direction;
-        const mod = ((signed % segmentWidth) + segmentWidth) % segmentWidth;
-        ribbonTracks[index].style.transform = `translate3d(${-mod.toFixed(2)}px, 0, 0)`;
+        const segmentWidth = ribbonTracks[index].scrollWidth / 3;
+        // segmentWidth is 0 before layout settles; skip rather than divide by zero.
+        if (segmentWidth <= 0) continue;
+        // mod keeps the result in [0, segmentWidth) for any sign of y, so the wrap-around is
+        // visually continuous: when y crosses a segment boundary, the strip jumps from its right
+        // end to its left end, but the three rendered copies make that jump look identical.
+        const yMod = ((y % segmentWidth) + segmentWidth) % segmentWidth;
+        // Top strip: translate3d in [-segmentWidth, 0] (drifts left as y grows).
+        // Bottom strip: translate3d in [0, +segmentWidth] (drifts right as y grows).
+        const x = (index === 0 ? -1 : 1) * yMod;
+        ribbonTracks[index].style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`;
       }
     };
-    const onRibbonScroll = () => {
-      const currentY = window.scrollY;
-      const dy = currentY - lastRibbonScrollY;
-      lastRibbonScrollY = currentY;
-      // Skip the work entirely on vertical noise — a one-pixel delta would still draw, but the
-      // render only matters once the offset has actually moved.
-      if (dy === 0) return;
-      ribbonAccumulatedOffset += dy * RIBBON_SCROLL_COUPLING;
+    const ribbonTick = () => {
       applyRibbonTransform();
+      ribbonRaf = requestAnimationFrame(ribbonTick);
     };
-    applyRibbonTransform();
-    window.addEventListener("scroll", onRibbonScroll, { passive: true });
-    window.addEventListener("resize", applyRibbonTransform);
+    ribbonRaf = requestAnimationFrame(ribbonTick);
+
+    // Show ribbons only while the principles section is in view. A wide rootMargin extends the
+    // visibility window so the strip stays painted as the section enters and leaves the page,
+    // rather than flickering on the very edges.
+    const principlesSection = document.querySelector<HTMLElement>("#principles");
+    const ribbonObserver = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          ribbonVisible = entry.isIntersecting;
+          for (const container of ribbonContainers) container.style.visibility = ribbonVisible ? "visible" : "hidden";
+        }
+      },
+      { rootMargin: "-10% 0px -10% 0px", threshold: 0 },
+    );
+    if (principlesSection) ribbonObserver?.observe(principlesSection);
 
     const updateScrollProgress = () => {
       const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
@@ -413,11 +426,12 @@ export function WelcomeExperience() {
       }
       delete document.documentElement.dataset.welcomeScrolled;
       document.documentElement.style.removeProperty("--welcome-scroll-progress");
-      // Strip the inline transform the scroll handler wrote so a remount under React StrictMode
-      // does not start at whatever scroll position the previous mount happened to leave behind.
+      // Strip the inline transform the rAF loop wrote so a remount under React StrictMode does
+      // not start at whatever scroll position the previous mount happened to leave behind.
       for (const track of ribbonTracks) track.style.removeProperty("transform");
-      window.removeEventListener("scroll", onRibbonScroll);
-      window.removeEventListener("resize", applyRibbonTransform);
+      for (const container of ribbonContainers) container.style.removeProperty("visibility");
+      ribbonObserver?.disconnect();
+      if (ribbonRaf) cancelAnimationFrame(ribbonRaf);
     };
   }, []);
 
