@@ -37,7 +37,13 @@ const galleryGrowth = [0.22, 0.42, 0.36];
 // means the row can be re-staggered without touching the hover logic.
 const galleryLift = [0, 74, 30];
 
-const principles = ["计划不替你猜测", "训练记录属于你", "进度来自已完成的训练"];
+const principles = [
+  ["计划不替你猜测", "清晰的目标，让每次开始都更容易。"],
+  ["训练记录属于你", "你的计划、记录和历史只服务于你的训练。"],
+  ["进度来自已完成的训练", "把已经发生的事变成下一次选择的依据。"],
+  ["动作清单保持简洁", "每个 Workout Day 只保留真正需要完成的动作。"],
+  ["节奏由你自己定义", "按自己的生活安排训练，再在真实记录中持续调整。"],
+] as const;
 
 export function WelcomeExperience() {
   useEffect(() => {
@@ -62,13 +68,6 @@ export function WelcomeExperience() {
       document.documentElement.style.setProperty("--welcome-scroll-progress", progress.toFixed(4));
       document.documentElement.dataset.welcomeScrolled = progress > 0.018 ? "true" : "false";
 
-      const principles = document.querySelector<HTMLElement>(".welcome-principles");
-      if (principles) {
-        const start = principles.offsetTop - window.innerHeight * 0.72;
-        const distance = principles.offsetHeight + window.innerHeight * 0.45;
-        const localProgress = Math.min(Math.max((window.scrollY - start) / distance, 0), 1);
-        document.documentElement.style.setProperty("--welcome-principles-progress", localProgress.toFixed(4));
-      }
     };
     updateScrollProgress();
     window.addEventListener("resize", updateScrollProgress);
@@ -364,7 +363,7 @@ export function WelcomeExperience() {
 
       <section className="welcome-gallery welcome-section"><div className="welcome-gallery-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">清醒地训练</p><h2>有结构，<br />才能更专注。</h2></div><div className="welcome-gallery-grid" data-gallery-row>{(imageSet.slice(1, 4) as Array<{ src: string; alt: string }>).map((image, index) => <figure className="welcome-reveal welcome-motion-gallery" data-scroll-motion data-gallery-rest={galleryGrowth[index]} key={image.src} style={{ "--gallery-lift": `${galleryLift[index]}px`, "--gallery-grow": `${galleryGrowth[index]}` } as CSSProperties}><img src={image.src} alt={image.alt} /></figure>)}</div></section>
 
-      <section className="welcome-principles" id="principles"><div className="welcome-principles-heading welcome-reveal welcome-motion-intro" data-scroll-motion><p className="welcome-kicker">CwFitness 的方式</p><h2>少一点噪音，<br />多一点确定。</h2></div><div className="welcome-principle-track" aria-label="产品原则">{[...principles, ...principles].map((principle, index) => <article className="liquid-glass" key={`${principle}-${index}`}><span>0{(index % 3) + 1}</span><h3>{principle}</h3><p>{index % 3 === 0 ? "清晰的目标，让每次开始都更容易。" : index % 3 === 1 ? "你的计划、记录和历史只服务于你的训练。" : "把已经发生的事变成下一次选择的依据。"}</p></article>)}</div></section>
+      <section className="welcome-principles" id="principles"><div className="welcome-principles-heading welcome-reveal welcome-motion-intro" data-scroll-motion><p className="welcome-kicker">CwFitness 的方式</p><h2>少一点噪音，<br />多一点确定。</h2></div><div className="welcome-principle-viewport" aria-label="产品原则" data-scroll-motion><div className="welcome-principle-track">{[...principles, ...principles].map(([title, copy], index) => <div className="welcome-principle-card" aria-hidden={index >= principles.length} key={`${title}-${index}`}><article className="liquid-glass"><span>0{(index % principles.length) + 1}</span><h3>{title}</h3><p>{copy}</p></article></div>)}</div></div></section>
 
       <section className="welcome-stages welcome-section"><div className="welcome-stages-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">从今天开始</p><h2>一个更简单的<br />训练循环。</h2></div><div className="welcome-stage-grid">{[["规划", "创建 Workout Plan，让每周训练有共同的方向。"], ["训练", "从一个 Workout Day 开始，完成属于今天的 Workout Session。"], ["进步", "回顾 Plan Progress，带着真实记录继续前进。"]].map(([title, copy], index) => <article className="welcome-stage liquid-glass welcome-reveal welcome-motion-stage" data-scroll-motion key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{copy}</p><Link href="/auth?mode=sign-up">免费开始 <b aria-hidden="true">↗</b></Link></article>)}</div></section>
 

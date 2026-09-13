@@ -116,6 +116,26 @@ test("every scroll-motion section eventually reveals once the page is scrolled t
   expect(revealed).toBe(total);
 });
 
+test("product-principle cards reveal, keep moving left, and lift on hover", async ({ page }) => {
+  await page.goto("/");
+  const viewport = page.locator(".welcome-principle-viewport");
+  await viewport.scrollIntoViewIfNeeded();
+  await viewport.evaluate((element) => element.classList.add("is-visible"));
+
+  const track = page.locator(".welcome-principle-track");
+  const cards = page.locator(".welcome-principle-card");
+  await expect(cards).toHaveCount(10);
+  await expect(track).toHaveCSS("animation-name", "welcome-marquee");
+  await expect(track).toHaveCSS("animation-timing-function", "linear");
+
+  const first = cards.first().locator("article");
+  await first.hover();
+  await page.waitForTimeout(220);
+  const transform = await first.evaluate((element) => getComputedStyle(element).transform);
+  expect(transform).not.toBe("none");
+  expect(Number(transform.match(/^matrix\(([^,]+)/)?.[1])).toBeGreaterThan(1);
+});
+
 // The tilt writes custom properties, never `transform`, so reading the variables back would pass
 // even if a stylesheet rule or a CSS animation were overriding the transform that actually paints.
 // These read the projected matrix instead, and use screenshot bytes as the tie-breaker for

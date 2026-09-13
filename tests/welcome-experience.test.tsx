@@ -53,6 +53,17 @@ describe("WelcomeExperience", () => {
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("is-visible");
   });
 
+  it("renders an expanded, seamless product-principles card track", () => {
+    render(<WelcomeExperience />);
+
+    const viewport = document.querySelector<HTMLElement>(".welcome-principle-viewport");
+    expect(viewport).toBeTruthy();
+    expect(viewport?.hasAttribute("data-scroll-motion")).toBe(true);
+    expect(viewport?.querySelectorAll(".welcome-principle-card")).toHaveLength(10);
+    expect(screen.getAllByText("动作清单保持简洁")).toHaveLength(2);
+    expect(screen.getAllByText("节奏由你自己定义")).toHaveLength(2);
+  });
+
   it("assigns distinct scroll-triggered motion treatments below the hero", () => {
     render(<WelcomeExperience />);
 
