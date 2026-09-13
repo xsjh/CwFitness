@@ -1,6 +1,6 @@
 {
   "groups": {
-    "auth": { "match": ["lib/auth.ts", "lib/database-failure-response.ts", "app/api/auth/**", "tests/database-failure-response.test.ts", "tests/browser/account-smoke.spec.ts"] },
+    "auth": { "match": ["lib/auth.ts", "lib/database-failure-response.ts", "lib/tcp-probe.ts", "app/api/auth/**", "tests/database-failure-response.test.ts", "tests/browser/account-smoke.spec.ts"] },
     "plans": { "match": ["app/api/plans/**", "app/api/exercises/**", "tests/plans-api.test.mjs", "tests/browser/workout-session.spec.ts"] },
     "sessions": { "match": ["lib/workout-sessions.ts", "lib/workout-session-domain.ts", "app/api/workout-sessions/**", "tests/browser/workout-session.spec.ts", "tests/browser/offline-sync.spec.ts"] },
     "progress": { "match": ["app/api/telemetry/**", "tests/browser/progress-view.spec.ts"] },

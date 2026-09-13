@@ -32,32 +32,6 @@ export function isTransientDriverError(error: unknown) {
   return typeof message === "string" && TRANSIENT_DRIVER_FRAGMENTS.some((fragment) => message.includes(fragment));
 }
 
-// "The database is not there" is a different situation from "this one connection hiccupped".
-// A hiccup is worth replaying; an absent database is not, and it has to reach the caller as an
-// explanation rather than a blank 500 — otherwise the sign-in form can only say "操作没有完成",
-// which is what sent us chasing this in the first place. `ECONNREFUSED` is what the pg driver
-// reports when the `prisma dev` instance behind DATABASE_URL is not running.
-const UNREACHABLE_DATABASE_CODES = new Set(["P1001", "ECONNREFUSED"]);
-
-const UNREACHABLE_DATABASE_FRAGMENTS = [
-  "Can't reach database server",
-  "ECONNREFUSED",
-];
-
-/**
- * Reports whether the failure means the database itself is unreachable, as opposed to a single
- * statement failing. Retrying cannot fix this, so callers should surface it instead of replaying.
- */
-export function isDatabaseUnreachableError(error: unknown) {
-  if (typeof error !== "object" || error === null) return false;
-  const { code, message } = error as { code?: unknown; message?: unknown };
-  if (typeof code === "string" && UNREACHABLE_DATABASE_CODES.has(code)) return true;
-  // The pg driver nests the socket error, so the code that matters can be one level down.
-  const cause = (error as { cause?: { code?: unknown } }).cause;
-  if (typeof cause?.code === "string" && UNREACHABLE_DATABASE_CODES.has(cause.code)) return true;
-  return typeof message === "string" && UNREACHABLE_DATABASE_FRAGMENTS.some((fragment) => message.includes(fragment));
-}
-
 export async function retryTransientDriverError<T>(operation: () => Promise<T>, attempts = 2): Promise<T> {
   for (let attempt = 1; ; attempt += 1) {
     try {
