@@ -424,7 +424,8 @@ export function WelcomeExperience() {
   }, []);
 
   return (
-    <main className="welcome-page" data-force-motion="true">
+    <div className="welcome-page" data-force-motion="true">
+      <main>
       <div className="welcome-route-progress" aria-hidden="true"><span /></div>
       <section className="welcome-hero" id="top">
         <div className="welcome-hero-image" />
@@ -490,7 +491,34 @@ export function WelcomeExperience() {
       <section className="welcome-faq welcome-section" id="questions"><div className="welcome-faq-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">常见问题</p><h2>开始之前，<br />你可能想知道。</h2></div><div className="welcome-faq-list welcome-reveal welcome-motion-faq" data-scroll-motion><details><summary>CwFitness 适合谁？</summary><p>适合希望自己规划、完成并回看训练的人。你不需要追随一套预设计划，产品从你的 Workout Plan 开始。</p></details><details><summary>我的训练记录会怎样被使用？</summary><p>它们用于呈现你自己的 Workout Session 与 Plan Progress，不会成为公开排行榜或社交内容。</p></details><details><summary>能否从简单计划开始？</summary><p>可以。先为一个 Workout Day 添加几个 Exercise，随着训练稳定下来再调整结构。</p></details></div></section>
 
       <section className="welcome-final"><div className="welcome-final-image" /><div className="welcome-final-content welcome-reveal welcome-motion-intro" data-scroll-motion><p className="welcome-kicker">从今天开始</p><h2>让训练，<br />持续发生。</h2><p>给每一次投入一个清晰的位置，再让时间为你留下答案。</p><Link className="welcome-primary" href="/auth?mode=sign-up">免费开始训练 <span aria-hidden="true">↗</span></Link></div></section>
-      <footer className="welcome-footer"><Link className="welcome-brand" href="#top"><span aria-hidden="true" />CwFitness</Link><p>计划、完成、回顾。</p><Link href="/auth">登录</Link></footer>
-    </main>
+      </main>
+      <footer className="welcome-footer" aria-labelledby="welcome-footer-title">
+        <div className="welcome-footer-main">
+          <div className="welcome-footer-brand">
+            <Link className="welcome-brand" href="#top"><span aria-hidden="true" />CwFitness</Link>
+            <h2 id="welcome-footer-title">让训练有计划，<br />让进步有依据。</h2>
+            <p>从 Workout Plan 到每一次 Workout Session，把长期坚持落在清晰、可回顾的记录里。</p>
+          </div>
+          <nav className="welcome-footer-nav" aria-label="页脚导航">
+            <div><p>产品</p><a href="#method">训练方式</a><a href="#principles">产品原则</a><a href="#questions">常见问题</a></div>
+            <div><p>开始</p><Link href="/auth?mode=sign-up">免费注册</Link><Link href="/auth">登录</Link></div>
+            <div><p>联系</p><a href="mailto:hello@cwfitness.example">商务合作</a><a href="mailto:support@cwfitness.example">用户支持</a></div>
+          </nav>
+        </div>
+        <div className="welcome-footer-legal">
+          <p>© {new Date().getFullYear()} CwFitness · [运营主体名称占位]</p>
+          <div className="welcome-footer-compliance" aria-label="备案与许可信息">
+            <span>[ICP备案号占位]</span>
+            <span>[公安备案号占位]</span>
+            <span>[增值电信业务经营许可证号占位]</span>
+          </div>
+          <div className="welcome-footer-policies" aria-label="法律文件">
+            <span>隐私政策（待发布）</span>
+            <span>用户协议（待发布）</span>
+          </div>
+        </div>
+        <p className="welcome-footer-disclaimer">CwFitness 提供训练计划与记录工具，不构成医疗建议。</p>
+      </footer>
+    </div>
   );
 }

@@ -53,6 +53,22 @@ describe("WelcomeExperience", () => {
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("is-visible");
   });
 
+  it("ends with a commercial footer that clearly labels placeholder compliance details", () => {
+    render(<WelcomeExperience />);
+
+    const footer = screen.getByRole("contentinfo");
+    expect(footer.getAttribute("aria-labelledby")).toBe("welcome-footer-title");
+    expect(screen.getByRole("heading", { name: /让训练有计划，\s*让进步有依据。/ })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "页脚导航" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "训练方式" }).getAttribute("href")).toBe("#method");
+    expect(screen.getByRole("link", { name: "免费注册" }).getAttribute("href")).toBe("/auth?mode=sign-up");
+    expect(screen.getByRole("link", { name: "商务合作" }).getAttribute("href")).toBe("mailto:hello@cwfitness.example");
+    expect(screen.getByLabelText("备案与许可信息").textContent).toContain("[ICP备案号占位]");
+    expect(screen.getByLabelText("法律文件").textContent).toContain("隐私政策（待发布）");
+    expect(footer.textContent).toContain(String(new Date().getFullYear()));
+    expect(footer.textContent).toContain("不构成医疗建议");
+  });
+
   it("starts the image-break entrance when its section enters the reading window", () => {
     render(<WelcomeExperience />);
 

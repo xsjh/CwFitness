@@ -488,3 +488,24 @@ test("the gallery grows the hovered frame and squeezes the other three", async (
   const released = await widths();
   for (let index = 0; index < rest.length; index++) expect(Math.abs(released[index] - rest[index])).toBeLessThan(6);
 });
+
+test("the commercial footer is a responsive, motion-quiet ending", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const footer = page.getByRole("contentinfo");
+  await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+  await expect(footer).toBeVisible();
+  await expect(page.getByRole("heading", { name: /让训练有计划，\s*让进步有依据。/ })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "页脚导航" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "训练方式", exact: true })).toHaveAttribute("href", "#method");
+  await expect(page.getByLabel("备案与许可信息")).toContainText("[公安备案号占位]");
+
+  const layout = await footer.evaluate((element) => ({
+    animationName: getComputedStyle(element).animationName,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: document.documentElement.clientWidth,
+  }));
+  expect(layout.animationName).toBe("none");
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
+});
