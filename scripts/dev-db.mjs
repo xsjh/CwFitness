@@ -30,10 +30,17 @@ const prismaCli = require.resolve('prisma/build/index.js');
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationsDirectory = join(projectRoot, 'prisma', 'migrations');
 
-/** A stopped instance needs a few seconds for its predecessor's lock to clear. */
-const START_ATTEMPTS = 4;
-const PORT_READY_TIMEOUT_MS = 25_000;
-const LOCK_RELEASE_WAIT_MS = 8_000;
+/** The instance this project's `.env` points at; overridable for a differently named setup. */
+const DEFAULT_INSTANCE_NAME = 'cwfitness-repro';
+
+/**
+ * A stopped instance needs a few seconds for its predecessor's lock to clear. The budget is
+ * deliberately bounded well under a minute: this runs before `next dev`, and a healthy instance
+ * is ready in a few seconds, so a long wait would only delay a start that is not going to succeed.
+ */
+const START_ATTEMPTS = 3;
+const PORT_READY_TIMEOUT_MS = 12_000;
+const LOCK_RELEASE_WAIT_MS = 5_000;
 
 /** Reads `.env` into a plain object; no dependency, and no shell quoting surprises. */
 export function parseEnvFile(contents) {
@@ -120,11 +127,7 @@ function readdirSafe(directory) {
  * else (a real PostgreSQL, a container) — then there is nothing to start.
  */
 export function findDevInstance(port, stateDirectory) {
-  const dataDirectory = stateDirectory
-    ?? join(process.env.LOCALAPPDATA ?? process.env.HOME ?? '.', 'prisma-dev-nodejs', 'Data');
-  for (const name of readdirSafe(dataDirectory)) {
-    const record = join(dataDirectory, name, 'server.json');
-    if (!existsSync(record)) continue;
+  for (const { record, name } of instanceRecords(stateDirectory)) {
     try {
       const parsed = JSON.parse(readFileSync(record, 'utf8'));
       if (parsed?.port !== port) continue;
@@ -136,6 +139,41 @@ export function findDevInstance(port, stateDirectory) {
     } catch { /* An unreadable record is not the instance we are looking for. */ }
   }
   return null;
+}
+
+/**
+ * The instance the record names, even when its recorded port does not match.
+ *
+ * Prisma rewrites `server.json` while an instance is starting, so a read that lands mid-write
+ * sees a stale or absent port. Falling back to the recorded name lets the start still be
+ * attempted; passing the expected port explicitly is harmless, because that is the port the
+ * instance is meant to serve and the one `.env` is already pointing at.
+ */
+export function findDevInstanceByName(name, stateDirectory) {
+  for (const entry of instanceRecords(stateDirectory)) {
+    if (entry.name !== name) continue;
+    try {
+      const parsed = JSON.parse(readFileSync(entry.record, 'utf8'));
+      return {
+        name: parsed.name ?? entry.name,
+        databasePort: parsed.databasePort,
+        shadowDatabasePort: parsed.shadowDatabasePort,
+      };
+    } catch { return { name: entry.name, databasePort: undefined, shadowDatabasePort: undefined }; }
+  }
+  return null;
+}
+
+/** Every instance directory that carries a record, paired with the name and record path. */
+function instanceRecords(stateDirectory) {
+  const dataDirectory = stateDirectory
+    ?? join(process.env.LOCALAPPDATA ?? process.env.HOME ?? '.', 'prisma-dev-nodejs', 'Data');
+  const entries = [];
+  for (const name of readdirSafe(dataDirectory)) {
+    const record = join(dataDirectory, name, 'server.json');
+    if (existsSync(record)) entries.push({ name, record });
+  }
+  return entries;
 }
 
 /** Migration folder names, oldest first, ignoring anything that is not a migration. */
@@ -231,20 +269,22 @@ export async function ensureDevelopmentDatabase({ envPath = new URL('../.env', i
   const connectionString = process.env.DATABASE_URL ?? fromFile.DATABASE_URL;
   if (!connectionString) throw new Error(`DATABASE_URL is not set in ${fileURLToPath(envPath)} or the environment`);
   const target = parseDatabaseUrl(connectionString);
+  let instanceName = null;
 
   if (await probePort(target.port, target.host)) {
     log(`[dev-db] port ${target.port} is already serving`);
   } else {
-    // The instance record carries the name and the sibling ports. When it is absent
-    // the port belongs to something else entirely, and starting a `prisma dev`
-    // instance would fight that server for the port — so refuse rather than guess.
-    const instance = findDevInstance(target.port, stateDirectory);
+    // Match on the recorded port first, then fall back to the name: Prisma rewrites the record
+    // while an instance starts, so a read that lands mid-write cannot be trusted to rule it out.
+    const instance = findDevInstance(target.port, stateDirectory)
+      ?? findDevInstanceByName(process.env.CWFITNESS_DEV_DB_NAME ?? DEFAULT_INSTANCE_NAME, stateDirectory);
     if (!instance) {
       throw new Error(`nothing is listening on ${target.host}:${target.port}, and no prisma dev instance owns that port.\n` +
         `        Point DATABASE_URL at a running PostgreSQL, or create the instance with:\n` +
-        `        npx prisma dev --name cwfitness-repro --port ${target.port} --db-port ${target.port + 1} --detach`);
+        `        npx prisma dev --name ${DEFAULT_INSTANCE_NAME} --port ${target.port} --db-port ${target.port + 1} --detach`);
     }
     await startInstance(instance, target.port, connectionString, log);
+    instanceName = instance.name;
   }
 
   // `migrate deploy` is idempotent, but checking first keeps a healthy start to one query.
@@ -257,10 +297,11 @@ export async function ensureDevelopmentDatabase({ envPath = new URL('../.env', i
     run([prismaCli, 'migrate', 'deploy']);
   }
   log('[dev-db] ready');
-  return { port: target.port, instance: instance?.name ?? null, appliedMigrations: applied.size };
+  return { port: target.port, instance: instanceName, appliedMigrations: applied.size };
 }
 
 async function main() {
+  const argv = process.argv;
   const log = (...parts) => console.log(...parts);
   const envPath = new URL('../.env', import.meta.url);
   const connectionString = process.env.DATABASE_URL
@@ -268,24 +309,23 @@ async function main() {
   if (!connectionString) throw new Error(`DATABASE_URL is not set in ${fileURLToPath(envPath)} or the environment`);
   const target = parseDatabaseUrl(connectionString);
 
-  if (process.argv.includes('--status')) {
+  if (argv.includes('--status')) {
     const reachable = await probePort(target.port, target.host);
     console.log(`[dev-db] status=${reachable ? 'up' : 'down'} port=${target.port}`);
     if (!reachable) process.exitCode = 1;
     return;
   }
 
+  // `npm run dev` chains this before `next dev`. A database that cannot be brought up must not
+  // stop the frontend from starting: the app is still useful, and the auth routes now answer 503
+  // with a cause, so the failure is visible in the browser instead of in a failed command.
+  const bestEffort = argv.includes('--best-effort');
   try {
     await ensureDevelopmentDatabase({ envPath, log });
   } catch (error) {
-    // A missing instance is the one failure an operator can act on, so say how.
-    if (/no prisma dev instance owns that port/.test(error.message)) {
-      console.error(`[dev-db] ${error.message}`);
-      console.error(`[dev-db] create one with: npx prisma dev --name <name> --port ${target.port} --detach`);
-      process.exitCode = 1;
-      return;
-    }
-    throw error;
+    console.error(`[dev-db] ${error.message}`);
+    if (!bestEffort) process.exitCode = 1;
+    else console.error('[dev-db] continuing without a database; auth routes will answer 503');
   }
 }
 

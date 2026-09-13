@@ -6,7 +6,7 @@ import { createServer } from 'node:net';
 import { afterAll, describe, expect, test } from 'vitest';
 
 import {
-  findDevInstance, migrationNames, parseDatabaseUrl, parseEnvFile, pendingMigrations, probePort,
+  findDevInstance, findDevInstanceByName, migrationNames, parseDatabaseUrl, parseEnvFile, pendingMigrations, probePort,
 } from '../scripts/dev-db.mjs';
 
 describe('parseEnvFile', () => {
@@ -107,6 +107,30 @@ describe('findDevInstance', () => {
     mkdirSync(join(directory, 'broken'), { recursive: true });
     writeFileSync(join(directory, 'broken', 'server.json'), '{ truncated');
     expect(findDevInstance(51218, directory)?.name).toBe('cwfitness-repro');
+  });
+
+  test('matching by name still finds an instance whose recorded port has drifted', () => {
+    // Prisma rewrites server.json mid-start, so the port can read as stale or absent.
+    const directory = stateDirectoryWith({
+      'cwfitness-repro': { name: 'cwfitness-repro', port: 9999, databasePort: 51219, shadowDatabasePort: 51220 },
+    });
+    expect(findDevInstance(51218, directory)).toBeNull();
+    expect(findDevInstanceByName('cwfitness-repro', directory)).toEqual({
+      name: 'cwfitness-repro', databasePort: 51219, shadowDatabasePort: 51220,
+    });
+  });
+
+  test('matching by name returns a usable entry even when the record is unreadable', () => {
+    const directory = stateDirectoryWith({ 'cwfitness-repro': { name: 'cwfitness-repro', port: 51218 } });
+    writeFileSync(join(directory, 'cwfitness-repro', 'server.json'), '{ truncated');
+    expect(findDevInstanceByName('cwfitness-repro', directory)).toEqual({
+      name: 'cwfitness-repro', databasePort: undefined, shadowDatabasePort: undefined,
+    });
+  });
+
+  test('matching by name returns null for an unknown name', () => {
+    const directory = stateDirectoryWith({ 'cwfitness-repro': { name: 'cwfitness-repro', port: 51218 } });
+    expect(findDevInstanceByName('something-else', directory)).toBeNull();
   });
 });
 

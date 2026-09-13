@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/dev-db.mjs --quiet && next dev",
+    "dev": "node scripts/dev-db.mjs --best-effort --quiet && next dev",
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
