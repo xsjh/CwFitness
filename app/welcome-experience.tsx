@@ -53,7 +53,13 @@ export function WelcomeExperience() {
       .catch(() => undefined);
     const revealElements = document.querySelectorAll<HTMLElement>("[data-scroll-motion]");
     const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(
-      (entries) => entries.forEach((entry) => entry.isIntersecting && entry.target.classList.add("is-visible")),
+      (entries) => entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const target = entry.target as HTMLElement;
+        if (!target.classList.contains("welcome-principle-viewport")) { target.classList.add("is-visible"); return; }
+        target.classList.add("motion-ready");
+        requestAnimationFrame(() => target.classList.add("is-visible"));
+      }),
       // The entrance should not have started before the reader arrives. 0.55 of a section plus a
       // -10% bottom margin pushes the trigger past the middle of the viewport. Every section is
       // shorter than the viewport, so both bounds stay reachable at desktop and mobile sizes.

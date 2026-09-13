@@ -120,7 +120,7 @@ test("product-principle cards reveal, keep moving left, and lift on hover", asyn
   await page.goto("/");
   const viewport = page.locator(".welcome-principle-viewport");
   await viewport.scrollIntoViewIfNeeded();
-  await viewport.evaluate((element) => element.classList.add("is-visible"));
+  await viewport.evaluate((element) => element.classList.add("motion-ready", "is-visible"));
 
   const track = page.locator(".welcome-principle-track");
   const cards = page.locator(".welcome-principle-card");
@@ -150,9 +150,15 @@ test("principle cards start their reveal only when the forced-motion viewport en
   const viewport = page.locator(".welcome-principle-viewport");
   const firstCard = viewport.locator(".welcome-principle-card").first();
   await expect(firstCard).toHaveCSS("animation-name", "none");
-  await viewport.evaluate((element) => element.classList.add("is-visible"));
+  await viewport.evaluate((element) => element.classList.add("motion-ready", "is-visible"));
   await expect(firstCard).toHaveCSS("animation-name", "welcome-principle-card-in");
   await expect(viewport).toHaveCSS("clip-path", "inset(0px)");
+});
+
+test("principle cards remain visible before the scroll observer starts their entrance", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.locator(".welcome-principle-card").first()).toHaveCSS("opacity", "1");
 });
 
 // The tilt writes custom properties, never `transform`, so reading the variables back would pass
