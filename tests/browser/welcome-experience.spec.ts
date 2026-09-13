@@ -2,6 +2,14 @@ import { expect, test, type Page } from "./helpers/test";
 
 type Locator = ReturnType<Page["locator"]>;
 
+test("the image break is painted before its scroll observer entrance", async ({ page }) => {
+  await page.goto("/");
+
+  // A full-width image section must never reserve its height while clipping all of its pixels;
+  // that was perceived as an empty, contentless background between the feature and image beats.
+  await expect(page.locator(".welcome-image-break")).toHaveCSS("clip-path", "none");
+});
+
 test("the welcome hero is sharp on its first rendered frame", async ({ page }) => {
   await page.goto("/");
 
