@@ -121,25 +121,49 @@ export function WelcomeExperience() {
     const imageBreak = document.querySelector<HTMLElement>(".welcome-image-break");
 
     // Scroll-coupled ribbons: the page's vertical scroll becomes the horizontal motion of the two
-    // text strips inside the principles section. Each strip reads window.scrollY and writes
-    // translate3d, so they stay 1:1 with the wheel — Lenis already smooths scrollY before it lands
-    // here, so a direct mapping is as smooth as the rest of the page. The top strip drifts left,
-    // the bottom strip drifts right, so the principle cards sit inside a pair of bands that pull
-    // in opposite directions as the page scrolls.
+    // text strips inside the principles section. scrollY's delta accumulates into a single offset,
+    // and the rendered translate3d is that offset mod the segment width — so the strip reads as a
+    // continuous flow that picks up where the wheel left it, instead of a one-shot move. Top strip
+    // drifts left as scrollY grows, bottom strip drifts right, so the principle cards sit inside
+    // a pair of bands that pull in opposite directions as the page scrolls.
     const ribbonTracks = [...document.querySelectorAll<HTMLElement>("[data-scroll-ribbon-track]")];
-    // Scroll-pixel-to-horizontal-pixel ratio. ~0.45 reads as drift on a long landing page; past
-    // ~0.7 it outruns the eye on a tall scroll and the strips look frantic.
-    const RIBBON_SCROLL_COUPLING = 0.45;
+    // Scroll-pixel-to-horizontal-pixel ratio. ~0.6 reads as a noticeable flow on a long landing
+    // page; past ~1.0 a tall scroll starts outrunning the eye and the strips look frantic.
+    const RIBBON_SCROLL_COUPLING = 0.6;
+    // Each scroll event feeds a delta; the running offset stays signed so an upward scroll unwinds
+    // the strip instead of sticking at the bottom of the loop. Segment width comes from the live
+    // layout: three copies of the phrase list are rendered, so scrollWidth / 3 is one loop.
+    let ribbonAccumulatedOffset = window.scrollY * RIBBON_SCROLL_COUPLING;
+    let lastRibbonScrollY = window.scrollY;
     const applyRibbonTransform = () => {
       if (ribbonTracks.length === 0) return;
-      const offset = window.scrollY * RIBBON_SCROLL_COUPLING;
+      const segmentWidth = ribbonTracks[0].scrollWidth / 3;
+      // segmentWidth is 0 on the first frame before layout; bail and let the next tick paint.
+      if (segmentWidth <= 0) return;
       for (let index = 0; index < ribbonTracks.length; index++) {
         // -1 for the top strip (drift left as scrollY grows), +1 for the bottom strip (drift right).
         const direction = index === 0 ? -1 : 1;
-        const x = offset * direction;
-        ribbonTracks[index].style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`;
+        // The double-mod trick keeps the result non-negative even when the offset is negative
+        // (scrolling back up); without it a JS modulo on a negative dividend returns a negative
+        // remainder and the strip jumps to the wrong end of its loop.
+        const signed = ribbonAccumulatedOffset * direction;
+        const mod = ((signed % segmentWidth) + segmentWidth) % segmentWidth;
+        ribbonTracks[index].style.transform = `translate3d(${-mod.toFixed(2)}px, 0, 0)`;
       }
     };
+    const onRibbonScroll = () => {
+      const currentY = window.scrollY;
+      const dy = currentY - lastRibbonScrollY;
+      lastRibbonScrollY = currentY;
+      // Skip the work entirely on vertical noise — a one-pixel delta would still draw, but the
+      // render only matters once the offset has actually moved.
+      if (dy === 0) return;
+      ribbonAccumulatedOffset += dy * RIBBON_SCROLL_COUPLING;
+      applyRibbonTransform();
+    };
+    applyRibbonTransform();
+    window.addEventListener("scroll", onRibbonScroll, { passive: true });
+    window.addEventListener("resize", applyRibbonTransform);
 
     const updateScrollProgress = () => {
       const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
@@ -152,8 +176,6 @@ export function WelcomeExperience() {
           imageBreak.classList.add("is-visible");
         }
       }
-      applyRibbonTransform();
-
     };
     updateScrollProgress();
     window.addEventListener("scroll", updateScrollProgress, { passive: true });
@@ -394,6 +416,8 @@ export function WelcomeExperience() {
       // Strip the inline transform the scroll handler wrote so a remount under React StrictMode
       // does not start at whatever scroll position the previous mount happened to leave behind.
       for (const track of ribbonTracks) track.style.removeProperty("transform");
+      window.removeEventListener("scroll", onRibbonScroll);
+      window.removeEventListener("resize", applyRibbonTransform);
     };
   }, []);
 
