@@ -10,6 +10,13 @@ test("the image break is painted before its scroll observer entrance", async ({ 
   await expect(page.locator(".welcome-image-break")).toHaveCSS("clip-path", "none");
 });
 
+test("the image break has a visible local fallback when its remote photo cannot load", async ({ page }) => {
+  await page.goto("/");
+
+  // Remote photos are an enhancement, never the only painted layer of a full-height section.
+  await expect(page.locator(".welcome-image-break")).not.toHaveCSS("background-image", "none");
+});
+
 test("the welcome hero is sharp on its first rendered frame", async ({ page }) => {
   await page.goto("/");
 
