@@ -41,8 +41,55 @@ test("scrolling the image break into view starts its copy entrance", async ({ pa
   await page.goto("/");
 
   const scene = page.locator(".welcome-image-break");
-  await scene.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await scene.evaluate((element) => {
+    element.scrollIntoView({ block: "center" });
+    window.dispatchEvent(new Event("scroll"));
+  });
   await expect(scene).toHaveClass(/is-visible/);
+});
+
+test("the image break softens both edges beyond the photo boundary", async ({ page }) => {
+  await page.goto("/");
+
+  const edgeLayer = page.locator(".welcome-image-break");
+  const geometry = await edgeLayer.evaluate((element) => {
+    const section = element.getBoundingClientRect();
+    const edge = getComputedStyle(element, "::before");
+    return {
+      bottom: Number.parseFloat(edge.bottom),
+      height: Number.parseFloat(edge.height),
+      sectionHeight: section.height,
+      top: Number.parseFloat(edge.top),
+    };
+  });
+
+  expect(geometry.top).toBeLessThan(0);
+  expect(geometry.bottom).toBeLessThan(0);
+  expect(geometry.height).toBeGreaterThan(geometry.sectionHeight);
+});
+
+test("the image copy is still blurred when the scene first enters the reading area", async ({ page }) => {
+  await page.goto("/");
+
+  const scene = page.locator(".welcome-image-break");
+  await scene.evaluate((element) => {
+    const top = element.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: top - window.innerHeight * 0.7, behavior: "instant" });
+  });
+
+  await expect(scene).not.toHaveClass(/is-visible/);
+  await expect(scene.locator(".welcome-image-line").first()).toHaveCSS("filter", "blur(10px)");
+});
+
+test("the requested image-copy entrance remains available in reduced-motion browser contexts", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+
+  const scene = page.locator(".welcome-image-break");
+  const line = scene.locator(".welcome-image-line").first();
+  await expect(line).toHaveCSS("filter", "blur(10px)");
+  await scene.evaluate((element) => element.classList.add("is-visible"));
+  await expect(line).toHaveCSS("animation-name", "welcome-image-line-arrive");
 });
 
 test("the welcome hero is sharp on its first rendered frame", async ({ page }) => {

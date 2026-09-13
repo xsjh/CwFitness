@@ -79,10 +79,31 @@
 /* Do not reserve a full image break while it is visually clipped. */
 .welcome-page .welcome-image-break.welcome-motion-image,.welcome-page[data-force-motion="true"] .welcome-image-break.welcome-motion-image{clip-path:none!important}
 
-/* Image-break choreography: the photo settles like the hero while edge blur blends the full-bleed
-   frame into the surrounding dark canvas. The copy is split into readable beats, not a block fade. */
-.welcome-page .welcome-image-break{isolation:isolate}.welcome-page .welcome-image-break>img{z-index:0;transform:scale(1.1)!important;transform-origin:center;transition:transform 2200ms cubic-bezier(.16,1,.3,1)!important}.welcome-page .welcome-image-break.is-visible>img{transform:scale(1)!important}.welcome-page .welcome-image-break::before{position:absolute;inset:0;z-index:1;content:"";pointer-events:none;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);-webkit-mask-image:linear-gradient(to bottom,#000 0%,transparent 16%,transparent 84%,#000 100%);mask-image:linear-gradient(to bottom,#000 0%,transparent 16%,transparent 84%,#000 100%)}.welcome-page .welcome-image-break::after{z-index:1}.welcome-page .welcome-image-break>div{z-index:2}.welcome-page .welcome-image-break .welcome-image-line{display:block;opacity:0;filter:blur(10px);transform:translateY(26px);transition:opacity 680ms cubic-bezier(.16,1,.3,1),filter 560ms cubic-bezier(.16,1,.3,1),transform 680ms cubic-bezier(.16,1,.3,1)}.welcome-page .welcome-image-break.is-visible .welcome-image-line{opacity:1;filter:none;transform:none}.welcome-page .welcome-image-break.is-visible h2 .welcome-image-line:nth-child(1){transition-delay:120ms}.welcome-page .welcome-image-break.is-visible h2 .welcome-image-line:nth-child(2){transition-delay:240ms}@media(prefers-reduced-motion:reduce){.welcome-page .welcome-image-break>img{transform:scale(1)!important;transition:none!important}.welcome-page .welcome-image-break .welcome-image-line,.welcome-page .welcome-image-break.is-visible .welcome-image-line{opacity:1;filter:none;transform:none;transition:none}}
+/* Image-break choreography: keep the photo clipped while the edge veil crosses into both
+   neighbouring sections, so the blur has room to dissolve instead of ending on a hard line. */
+.welcome-page .welcome-image-break{isolation:isolate;overflow:visible}
+.welcome-page .welcome-image-media{position:absolute;inset:0;z-index:0;width:auto;max-width:none;overflow:hidden}
+.welcome-page .welcome-image-media>img{position:absolute;inset:0;transform:scale(1.1)!important;transform-origin:center;transition:transform 2200ms cubic-bezier(.16,1,.3,1)!important}
+.welcome-page .welcome-image-break.is-visible .welcome-image-media>img{transform:scale(1)!important}
+/* The edge veils are a graded effect, not a plate: the mask fades this layer out by 96px in from
+   each edge, so the photo is untouched in the middle. An ungraded `backdrop-filter: blur()` still
+   reads the WHOLE backdrop behind the layer and paints it everywhere the layer is opaque, which
+   smeared the photo's centre too. Giving the filter the same mask confines the blur to the two
+   transition bands, and the lighter veils keep the seam soft now that blur no longer carries it. */
+.welcome-page .welcome-image-break::before{position:absolute;top:-96px;right:0;bottom:-96px;left:0;z-index:1;height:auto;background:linear-gradient(to bottom,transparent 0,rgba(7,16,14,.9) 96px,rgba(7,16,14,.32) 20%,transparent 34%,transparent 66%,rgba(7,16,14,.32) 80%,rgba(7,16,14,.9) calc(100% - 96px),transparent 100%);content:"";pointer-events:none;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);-webkit-mask-image:linear-gradient(to bottom,transparent,#000 96px,#000 calc(100% - 96px),transparent);mask-image:linear-gradient(to bottom,transparent,#000 96px,#000 calc(100% - 96px),transparent);mask-clip:no-clip}
+.welcome-page .welcome-image-break::after{z-index:1}
+.welcome-page .welcome-image-break>div:not(.welcome-image-media){z-index:2}
+.welcome-page .welcome-image-line{display:block;opacity:0;filter:blur(10px);transform:translateY(26px)}
+@keyframes welcome-image-line-arrive{from{opacity:0;filter:blur(10px);transform:translateY(26px)}to{opacity:1;filter:none;transform:none}}
+.welcome-page .welcome-image-break.is-visible .welcome-image-line{animation:welcome-image-line-arrive 700ms cubic-bezier(.16,1,.3,1) both}
+.welcome-page .welcome-image-break.is-visible h2 .welcome-image-line:nth-child(1){animation-delay:130ms}
+.welcome-page .welcome-image-break.is-visible h2 .welcome-image-line:nth-child(2){animation-delay:260ms}
 
-/* The backdrop alone is too subtle on a dark photo. Give the blur a visible Hero-like fade at
-   both edges, then make each copy beat its own keyframed entrance. */
-.welcome-page .welcome-image-break::before{background:linear-gradient(to bottom,rgba(7,16,14,.98) 0%,rgba(7,16,14,.58) 11%,transparent 23%,transparent 77%,rgba(7,16,14,.58) 89%,rgba(7,16,14,.98) 100%);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}@keyframes welcome-image-line-arrive{from{opacity:0;filter:blur(10px);transform:translateY(26px)}to{opacity:1;filter:none;transform:none}}.welcome-page .welcome-image-break.is-visible .welcome-image-line{animation:welcome-image-line-arrive 700ms cubic-bezier(.16,1,.3,1) both}.welcome-page .welcome-image-break.is-visible h2 .welcome-image-line:nth-child(1){animation-delay:130ms}.welcome-page .welcome-image-break.is-visible h2 .welcome-image-line:nth-child(2){animation-delay:260ms}@media(prefers-reduced-motion:reduce){.welcome-page .welcome-image-break.is-visible .welcome-image-line{animation:none}}
+@media(prefers-reduced-motion:reduce){
+  .welcome-page:not([data-force-motion="true"]) .welcome-image-media>img{transform:scale(1)!important;transition:none!important}
+  .welcome-page:not([data-force-motion="true"]) .welcome-image-line{opacity:1;filter:none;transform:none;animation:none!important}
+  .welcome-page[data-force-motion="true"] .welcome-image-media>img{transform:scale(1.1)!important;transition:transform 2200ms cubic-bezier(.16,1,.3,1)!important}
+  .welcome-page[data-force-motion="true"] .welcome-image-break.is-visible .welcome-image-media>img{transform:scale(1)!important}
+  .welcome-page[data-force-motion="true"] .welcome-image-break .welcome-image-line{opacity:0;filter:blur(10px);transform:translateY(26px)}
+  .welcome-page[data-force-motion="true"] .welcome-image-break.is-visible .welcome-image-line{animation:welcome-image-line-arrive 700ms cubic-bezier(.16,1,.3,1) both!important}
+}
