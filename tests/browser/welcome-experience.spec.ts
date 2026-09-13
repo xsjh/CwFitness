@@ -17,6 +17,22 @@ test("the image break has a visible local fallback when its remote photo cannot 
   await expect(page.locator(".welcome-image-break")).not.toHaveCSS("background-image", "none");
 });
 
+test("the image break settles its photo and reveals copy one line at a time", async ({ page }) => {
+  await page.goto("/");
+
+  const scene = page.locator(".welcome-image-break");
+  const image = scene.locator("img");
+  const lines = scene.locator(".welcome-image-line");
+  await expect(lines).toHaveCount(3);
+  await expect(image).toHaveCSS("transform", "matrix(1.1, 0, 0, 1.1, 0, 0)");
+  await expect(lines.first()).toHaveCSS("filter", "blur(10px)");
+
+  await scene.evaluate((element) => element.classList.add("is-visible"));
+  await page.waitForTimeout(900);
+  await expect(lines.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).filter))).resolves.toEqual(["none", "none", "none"]);
+  await expect(image).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+});
+
 test("the welcome hero is sharp on its first rendered frame", async ({ page }) => {
   await page.goto("/");
 
