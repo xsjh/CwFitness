@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, type CSSProperties } from "react";
+import { Fragment, useEffect, type CSSProperties } from "react";
 import Lenis from "lenis";
 
 const imageSet = [
@@ -45,6 +45,52 @@ const principles = [
   ["节奏由你自己定义", "按自己的生活安排训练，再在真实记录中持续调整。"],
 ] as const;
 
+// Short phrases shown on the scroll-coupled ribbons inside the principles section. Three copies are
+// rendered side by side so the longest translation the page can produce (a full-page scroll on a tall
+// viewport) still lands on a duplicate and never reveals a seam.
+const ribbonTopPhrases = [
+  "训练计划",
+  "训练记录",
+  "计划进度",
+  "动作清单",
+  "节奏由你",
+  "WORKOUT PLAN",
+  "TRAINING SESSION",
+  "PLAN PROGRESS",
+] as const;
+
+const ribbonBottomPhrases = [
+  "TRAINING PLANS",
+  "TECHNIQUE ANALYSIS",
+  "WORKOUT SESSIONS",
+  "PLAN PROGRESS",
+  "WEEKLY RHYTHM",
+  "COACH NOTES",
+  "RECOVERY DAY",
+  "CWFITNESS",
+] as const;
+
+const ribbonCopies = 3;
+
+const renderRibbon = (phrases: readonly string[]) => (
+  <div className="welcome-scroll-ribbon-track" data-scroll-ribbon-track>
+    {Array.from({ length: ribbonCopies }).map((_, copy) => (
+      <span
+        className="welcome-scroll-ribbon-segment"
+        key={`ribbon-copy-${copy}`}
+        aria-hidden={copy > 0 ? true : undefined}
+      >
+        {phrases.map((phrase, index) => (
+          <Fragment key={`ribbon-phrase-${copy}-${phrase}`}>
+            {index > 0 ? <i aria-hidden="true" className="welcome-scroll-ribbon-dot">•</i> : null}
+            <span className="welcome-scroll-ribbon-phrase">{phrase}</span>
+          </Fragment>
+        ))}
+      </span>
+    ))}
+  </div>
+);
+
 export function WelcomeExperience() {
   useEffect(() => {
     void fetch("/api/auth/get-session?disableCookieCache=true", { cache: "no-store" })
@@ -74,6 +120,27 @@ export function WelcomeExperience() {
     // same scroll-progress update the page already performs.
     const imageBreak = document.querySelector<HTMLElement>(".welcome-image-break");
 
+    // Scroll-coupled ribbons: the page's vertical scroll becomes the horizontal motion of the two
+    // text strips inside the principles section. Each strip reads window.scrollY and writes
+    // translate3d, so they stay 1:1 with the wheel — Lenis already smooths scrollY before it lands
+    // here, so a direct mapping is as smooth as the rest of the page. The top strip drifts left,
+    // the bottom strip drifts right, so the principle cards sit inside a pair of bands that pull
+    // in opposite directions as the page scrolls.
+    const ribbonTracks = [...document.querySelectorAll<HTMLElement>("[data-scroll-ribbon-track]")];
+    // Scroll-pixel-to-horizontal-pixel ratio. ~0.45 reads as drift on a long landing page; past
+    // ~0.7 it outruns the eye on a tall scroll and the strips look frantic.
+    const RIBBON_SCROLL_COUPLING = 0.45;
+    const applyRibbonTransform = () => {
+      if (ribbonTracks.length === 0) return;
+      const offset = window.scrollY * RIBBON_SCROLL_COUPLING;
+      for (let index = 0; index < ribbonTracks.length; index++) {
+        // -1 for the top strip (drift left as scrollY grows), +1 for the bottom strip (drift right).
+        const direction = index === 0 ? -1 : 1;
+        const x = offset * direction;
+        ribbonTracks[index].style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`;
+      }
+    };
+
     const updateScrollProgress = () => {
       const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = scrollableHeight > 0 ? Math.min(window.scrollY / scrollableHeight, 1) : 0;
@@ -85,6 +152,7 @@ export function WelcomeExperience() {
           imageBreak.classList.add("is-visible");
         }
       }
+      applyRibbonTransform();
 
     };
     updateScrollProgress();
@@ -323,6 +391,9 @@ export function WelcomeExperience() {
       }
       delete document.documentElement.dataset.welcomeScrolled;
       document.documentElement.style.removeProperty("--welcome-scroll-progress");
+      // Strip the inline transform the scroll handler wrote so a remount under React StrictMode
+      // does not start at whatever scroll position the previous mount happened to leave behind.
+      for (const track of ribbonTracks) track.style.removeProperty("transform");
     };
   }, []);
 
@@ -381,7 +452,12 @@ export function WelcomeExperience() {
 
       <section className="welcome-gallery welcome-section"><div className="welcome-gallery-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">清醒地训练</p><h2>有结构，<br />才能更专注。</h2></div><div className="welcome-gallery-grid" data-gallery-row>{(imageSet.slice(1, 4) as Array<{ src: string; alt: string }>).map((image, index) => <figure className="welcome-reveal welcome-motion-gallery" data-scroll-motion data-gallery-rest={galleryGrowth[index]} key={image.src} style={{ "--gallery-lift": `${galleryLift[index]}px`, "--gallery-grow": `${galleryGrowth[index]}` } as CSSProperties}><img src={image.src} alt={image.alt} /></figure>)}</div></section>
 
-      <section className="welcome-principles" id="principles"><div className="welcome-principles-heading welcome-reveal welcome-motion-intro" data-scroll-motion><p className="welcome-kicker">CwFitness 的方式</p><h2>少一点噪音，<br />多一点确定。</h2></div><div className="welcome-principle-viewport" aria-label="产品原则" data-scroll-motion><div className="welcome-principle-track">{[...principles, ...principles].map(([title, copy], index) => <div className="welcome-principle-card" aria-hidden={index >= principles.length} key={`${title}-${index}`}><article className="liquid-glass"><span>0{(index % principles.length) + 1}</span><h3>{title}</h3><p>{copy}</p></article></div>)}</div></div></section>
+      <section className="welcome-principles" id="principles">
+        <div className="welcome-scroll-ribbon welcome-scroll-ribbon-top" aria-hidden="true">{renderRibbon(ribbonTopPhrases)}</div>
+        <div className="welcome-principles-heading welcome-reveal welcome-motion-intro" data-scroll-motion><p className="welcome-kicker">CwFitness 的方式</p><h2>少一点噪音，<br />多一点确定。</h2></div>
+        <div className="welcome-principle-viewport" aria-label="产品原则" data-scroll-motion><div className="welcome-principle-track">{[...principles, ...principles].map(([title, copy], index) => <div className="welcome-principle-card" aria-hidden={index >= principles.length} key={`${title}-${index}`}><article className="liquid-glass"><span>0{(index % principles.length) + 1}</span><h3>{title}</h3><p>{copy}</p></article></div>)}</div></div>
+        <div className="welcome-scroll-ribbon welcome-scroll-ribbon-bottom" aria-hidden="true">{renderRibbon(ribbonBottomPhrases)}</div>
+      </section>
 
       <section className="welcome-stages welcome-section"><div className="welcome-stages-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">从今天开始</p><h2>一个更简单的<br />训练循环。</h2></div><div className="welcome-stage-grid">{[["规划", "创建 Workout Plan，让每周训练有共同的方向。"], ["训练", "从一个 Workout Day 开始，完成属于今天的 Workout Session。"], ["进步", "回顾 Plan Progress，带着真实记录继续前进。"]].map(([title, copy], index) => <article className="welcome-stage liquid-glass welcome-reveal welcome-motion-stage" data-scroll-motion key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{copy}</p><Link href="/auth?mode=sign-up">免费开始 <b aria-hidden="true">↗</b></Link></article>)}</div></section>
 
