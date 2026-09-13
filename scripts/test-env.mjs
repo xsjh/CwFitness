@@ -5,8 +5,19 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 export const root = new URL('../', import.meta.url);
-export const testServerName = 'cwfitness-test';
-export const databaseUrl = 'postgres://postgres:postgres@127.0.0.1:51214/template1?sslmode=disable';
+/**
+ * The integration suite talks to its own database on the常驻 PostgreSQL service, not to the
+ * development one: the suite truncates tables and rewrites rows, so sharing `cwfitness` would
+ * wipe whatever the developer is looking at. A separate database gives that isolation for free —
+ * an earlier version of this file started a second `prisma dev` instance instead, which also
+ * meant the suite inherited that CLI's fragile lock and startup behaviour.
+ *
+ * The connection is configurable so CI (or a differently provisioned machine) can point it at
+ * another server; the defaults match a stock local PostgreSQL install.
+ */
+export const testDatabaseName = process.env.CWFITNESS_TEST_DB_NAME ?? 'cwfitness_test';
+export const databaseUrl = process.env.CWFITNESS_TEST_DATABASE_URL
+  ?? `postgres://postgres:0131@127.0.0.1:5432/${testDatabaseName}?sslmode=disable`;
 export const baseUrl = 'http://127.0.0.1:3100';
 export const localEmailOutbox = join(tmpdir(), 'cwfitness-local-email-outbox.jsonl');
 const systemDrive = process.env.SystemDrive ?? 'C:';
@@ -49,18 +60,30 @@ export async function waitForServer(serverProcess) {
   }
   throw new Error('Next.js test server did not become ready within 30 seconds');
 }
+/**
+ * Makes sure the test database exists on the常驻 service.
+ *
+ * `CREATE DATABASE` has no `IF NOT EXISTS`, so existence is checked first — re-running the suite
+ * must be a no-op here, not an error. The maintenance database is `postgres`, because you cannot
+ * create a database while connected to the one you are creating.
+ */
 export async function startDatabase() {
-  const args = [prismaCli, 'dev', '--name', testServerName, '--port', '51213', '--db-port', '51214', '--shadow-db-port', '51215', '--detach'];
   await rm(localEmailOutbox, { force: true });
-  // Prisma dev can retain its state lock briefly after `dev stop`. Retry for the same
-  // 30-second window used by the Next.js readiness check before surfacing the failure.
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try { await run(node, args); return; } catch (error) {
-      if (attempt === 3) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 10_000));
-    }
+  const { Client } = await import('pg');
+  const maintenance = databaseUrl.replace(/\/[^/?]+(\?|$)/, '/postgres$1');
+  const client = new Client({ connectionString: maintenance });
+  await client.connect();
+  try {
+    const { rowCount } = await client.query('select 1 from pg_database where datname = $1', [testDatabaseName]);
+    if (rowCount === 0) await client.query(`create database "${testDatabaseName}"`);
+  } finally {
+    await client.end();
   }
 }
 export async function migrateDatabase() { await run(node, [prismaCli, 'migrate', 'deploy']); }
 export async function startServer() { await assertPortFree(); const server = spawn(node, [nextCli, 'dev', '--webpack', '-H', '127.0.0.1', '-p', '3100'], { cwd: root, env, stdio: 'inherit' }); await waitForServer(server); return server; }
-export async function stopDatabase() { await run(node, [prismaCli, 'dev', 'stop', testServerName]); }
+/**
+ * Nothing to stop: the database is a service, and the next run rebuilds its state by migrating.
+ * Kept as an exported no-op so `test-integration.mjs` keeps its symmetric try/finally shape.
+ */
+export async function stopDatabase() {}

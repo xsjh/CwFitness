@@ -1,19 +1,21 @@
 /**
  * Brings the development PostgreSQL back to the exact state `.env` expects.
  *
- * The development database is a `prisma dev` instance, not a常驻 service: it dies
- * whenever the machine restarts, the terminal that started it closes, or the
- * integration suite stops it (`test-env.mjs` runs against a different instance but
- * calls `prisma dev stop` on its own). `.env` pins a fixed port, so once the
- * instance is gone every auth request fails with ECONNREFUSED and the UI degrades
- * to "操作没有完成，请稍后重试。" — with no hint about why.
+ * The dev database is a常驻 PostgreSQL service, so on a healthy machine this script only
+ * checks the connection and applies migrations. The `prisma dev` support below is a fallback
+ * for anyone still running the project against a local instance: such an instance dies whenever
+ * the machine restarts or the terminal that started it closes, and `.env` pins a fixed port, so
+ * its absence used to surface only as every auth request failing with ECONNREFUSED and the UI
+ * degrading to "操作没有完成，请稍后重试。" with no hint about why.
  *
- * Idempotent: reads the port and instance name out of `DATABASE_URL`, starts the
- * instance only when nothing is listening, applies only the migrations that are
- * actually missing. Running it against a healthy database is a no-op.
+ * Idempotent: reads the port and instance name out of `DATABASE_URL`, starts an instance only
+ * when nothing is listening *and* one is recorded for that port, applies only the migrations
+ * that are actually missing. Running it against a healthy database is a no-op.
  *
- * usage: node scripts/dev-db.mjs [--status]
- *   --status  report the resolved instance, port and reachability without changing anything
+ * usage: node scripts/dev-db.mjs [--status] [--best-effort] [--quiet]
+ *   --status       report the resolved instance, port and reachability without changing anything
+ *   --best-effort  never fail the caller; a database that cannot be reached is reported, not thrown
+ *   --quiet        only print when something actually needs doing
  *
  * exit codes: 0 healthy (or repaired), 1 could not be made healthy
  */
@@ -195,7 +197,12 @@ export function pendingMigrations(applied, wanted) {
  */
 async function appliedMigrationNames(connectionString) {
   const { Client } = await import('pg');
-  const client = new Client({ connectionString });
+  // A connection timeout is not optional here: without one, a port that accepts TCP but never
+  // completes the PostgreSQL handshake leaves the client waiting indefinitely, and `npm run dev`
+  // would hang before `next dev` ever starts. Failing in a few seconds is what keeps
+  // `--best-effort` able to move on.
+  const client = new Client({ connectionString, connectionTimeoutMillis: 5_000 });
+  client.on('error', () => {});
   await client.connect();
   try {
     const { rows } = await client.query('select migration_name from _prisma_migrations where finished_at is not null');
@@ -203,7 +210,7 @@ async function appliedMigrationNames(connectionString) {
   } catch (error) {
     if (error.code === '42P01') return new Set(); // undefined_table: a fresh instance
     throw error;
-  } finally { await client.end(); }
+  } finally { await client.end().catch(() => {}); }
 }
 
 function run(args, { stdio = 'inherit' } = {}) {
@@ -302,7 +309,6 @@ export async function ensureDevelopmentDatabase({ envPath = new URL('../.env', i
 
 async function main() {
   const argv = process.argv;
-  const log = (...parts) => console.log(...parts);
   const envPath = new URL('../.env', import.meta.url);
   const connectionString = process.env.DATABASE_URL
     ?? (existsSync(envPath) ? parseEnvFile(readFileSync(envPath, 'utf8')).DATABASE_URL : undefined);
@@ -315,6 +321,12 @@ async function main() {
     if (!reachable) process.exitCode = 1;
     return;
   }
+
+  // `--quiet` keeps the healthy path silent: `npm run dev` runs this on every start and a
+  // database that is already fine has nothing worth saying. Failures still print, because
+  // silence there is exactly the trap this script exists to remove.
+  const quiet = argv.includes('--quiet');
+  const log = quiet ? () => {} : (...parts) => console.log(...parts);
 
   // `npm run dev` chains this before `next dev`. A database that cannot be brought up must not
   // stop the frontend from starting: the app is still useful, and the auth routes now answer 503

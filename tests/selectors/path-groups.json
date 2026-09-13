@@ -6,6 +6,7 @@
     "progress": { "match": ["app/api/telemetry/**", "tests/browser/progress-view.spec.ts"] },
     "welcome": { "match": ["app/page.tsx", "app/layout.tsx", "app/welcome-experience.tsx", "app/welcome-motion.css", "app/globals.css", "tests/browser/welcome-experience.spec.ts"] },
     "browser-core": { "match": ["app/page.tsx", "tests/browser/account-smoke.spec.ts"], "always": true },
+    "test-infra": { "match": ["scripts/test-env.mjs", "scripts/test-selector.mjs", "scripts/dev-db.mjs", "tests/dev-db.test.mjs"], "always": true },
     "@cross-browser": { "match": ["tests/browser/cross-browser.spec.ts"], "engines": ["firefox", "webkit"] },
     "health-smoke": { "match": ["tests/smoke-api.test.mjs"], "always": true }
   },
