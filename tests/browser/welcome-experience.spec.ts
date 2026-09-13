@@ -28,9 +28,21 @@ test("the image break settles its photo and reveals copy one line at a time", as
   await expect(lines.first()).toHaveCSS("filter", "blur(10px)");
 
   await scene.evaluate((element) => element.classList.add("is-visible"));
+  await expect(lines.first()).toHaveCSS("animation-name", "welcome-image-line-arrive");
   await page.waitForTimeout(900);
-  await expect(lines.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).filter))).resolves.toEqual(["none", "none", "none"]);
+  await expect(lines.evaluateAll((elements) => elements.every((element) => {
+    const blur = Number.parseFloat(getComputedStyle(element).filter.match(/[\d.]+/)?.[0] ?? "0");
+    return blur < 0.01 && Number.parseFloat(getComputedStyle(element).opacity) > 0.99;
+  }))).resolves.toBe(true);
   await expect(image).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+});
+
+test("scrolling the image break into view starts its copy entrance", async ({ page }) => {
+  await page.goto("/");
+
+  const scene = page.locator(".welcome-image-break");
+  await scene.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect(scene).toHaveClass(/is-visible/);
 });
 
 test("the welcome hero is sharp on its first rendered frame", async ({ page }) => {
