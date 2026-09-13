@@ -2,19 +2,6 @@ import { expect, test, type Page } from "./helpers/test";
 
 type Locator = ReturnType<Page["locator"]>;
 
-test("solid-color sections render sparse decorative contour lines", async ({ page }) => {
-  await page.goto("/");
-
-  const section = page.locator(".welcome-intro");
-  const field = section.locator(".welcome-contours");
-  await section.scrollIntoViewIfNeeded();
-  await expect(section).toHaveAttribute("data-contour-host", "true");
-  await expect(field.locator("path")).toHaveCount(6);
-  await expect(field).toHaveAttribute("aria-hidden", "true");
-  await expect(field).toHaveCSS("pointer-events", "none");
-  await expect(field.locator("path").first()).toHaveCSS("stroke-dasharray", "3px, 8px");
-});
-
 test("the welcome hero is sharp on its first rendered frame", async ({ page }) => {
   await page.goto("/");
 

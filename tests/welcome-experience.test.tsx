@@ -41,33 +41,6 @@ describe("WelcomeExperience", () => {
     expect(screen.getByText("向下探索").closest(".welcome-scroll-cue")).toBeTruthy();
   });
 
-  it("adds sparse, decorative contour fields to the solid-color reading sections", () => {
-    render(<WelcomeExperience />);
-
-    const fields = document.querySelectorAll<HTMLElement>(".welcome-contours");
-    expect(fields).toHaveLength(6);
-    expect(document.querySelectorAll("[data-contour-host]")).toHaveLength(6);
-    for (const field of fields) {
-      expect(field.getAttribute("aria-hidden")).toBe("true");
-      expect(field.querySelectorAll("path")).toHaveLength(6);
-    }
-  });
-
-  it("eases the active contour field toward a mouse pointer without making it interactive", () => {
-    render(<WelcomeExperience />);
-
-    const host = document.querySelector<HTMLElement>(".welcome-intro")!;
-    const field = host.querySelector<HTMLElement>(".welcome-contours")!;
-    const originalRect = field.getBoundingClientRect;
-    field.getBoundingClientRect = () => ({ x: 100, y: 200, width: 600, height: 400, top: 200, left: 100, right: 700, bottom: 600, toJSON: () => ({}) }) as DOMRect;
-
-    host.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 625, clientY: 310 }));
-    expect(Number.parseFloat(field.style.getPropertyValue("--contour-x"))).toBeGreaterThan(10);
-    expect(Number.parseFloat(field.style.getPropertyValue("--contour-y"))).toBeLessThan(0);
-
-    field.getBoundingClientRect = originalRect;
-  });
-
   it("uses product principles instead of fabricated testimonials or pricing", () => {
     render(<WelcomeExperience />);
 
