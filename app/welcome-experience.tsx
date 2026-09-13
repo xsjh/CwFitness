@@ -45,6 +45,23 @@ const principles = [
   ["节奏由你自己定义", "按自己的生活安排训练，再在真实记录中持续调整。"],
 ] as const;
 
+// A deliberately sparse, Aceternity-style contour layer. It stays decorative (and outside the
+// accessibility tree), while its parent section supplies the pointer relationship.
+function ContourField() {
+  return (
+    <div className="welcome-contours" aria-hidden="true">
+      <svg viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid slice" focusable="false">
+        <path d="M-104 164C92 64 218 236 412 148s326-4 500-92 270-14 396-110" />
+        <path d="M-96 218C102 118 226 294 420 204s326-2 502-90 270-16 394-112" />
+        <path d="M-84 274C116 174 236 350 432 260s326 0 504-88 270-16 388-110" />
+        <path d="M-70 332C130 230 252 410 448 316s322 2 502-84 268-16 380-108" />
+        <path d="M-54 392C148 288 270 472 466 374s320 4 500-80 264-20 368-102" />
+        <path d="M-38 454C166 348 286 534 484 432s318 6 498-76 262-22 356-96" />
+      </svg>
+    </div>
+  );
+}
+
 export function WelcomeExperience() {
   useEffect(() => {
     void fetch("/api/auth/get-session?disableCookieCache=true", { cache: "no-store" })
@@ -94,6 +111,31 @@ export function WelcomeExperience() {
     // three: with a shared viewport reading all three would sit at the same angle and read as one
     // rigid prop. Angles stay inside the 12-16deg readable band; past that the type starts to shear.
     const tiltPanels = [...document.querySelectorAll<HTMLElement>(".welcome-motion-tilt")];
+    const contourMotionAllowed = !reducedMotion;
+    let activeContour: HTMLElement | null = null;
+
+    const releaseContour = () => {
+      if (!activeContour) return;
+      activeContour.style.removeProperty("--contour-x");
+      activeContour.style.removeProperty("--contour-y");
+      activeContour = null;
+    };
+
+    const updateContour = (event: PointerEvent) => {
+      if (!contourMotionAllowed || event.pointerType === "touch") return;
+      const target = event.target instanceof Element ? event.target : null;
+      const field = target?.closest<HTMLElement>("[data-contour-host]")?.querySelector<HTMLElement>(".welcome-contours") ?? null;
+      if (!field) { releaseContour(); return; }
+
+      const box = field.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) return;
+      const x = Math.max(-1, Math.min(1, (event.clientX - (box.left + box.width / 2)) / (box.width / 2)));
+      const y = Math.max(-1, Math.min(1, (event.clientY - (box.top + box.height / 2)) / (box.height / 2)));
+      if (activeContour && activeContour !== field) releaseContour();
+      activeContour = field;
+      field.style.setProperty("--contour-x", `${(x * 14).toFixed(2)}px`);
+      field.style.setProperty("--contour-y", `${(y * 9).toFixed(2)}px`);
+    };
     const MAX_YAW = 7;
     const MAX_PITCH = 5;
     const MAX_SHIFT = 6;
@@ -223,6 +265,7 @@ export function WelcomeExperience() {
         }
       }
       if (anyHovered) startTilt();
+      updateContour(event);
     };
     // A panel left frozen wherever the pointer happened to exit is a panel that lies about being
     // interactive. Release it back to the resting pose instead.
@@ -233,6 +276,7 @@ export function WelcomeExperience() {
         if (glow) glow.hovered = false;
         delete panel.dataset.tiltLive;
       }
+      releaseContour();
       startTilt();
     };
 
@@ -339,12 +383,14 @@ export function WelcomeExperience() {
         <p className="welcome-scroll-cue"><strong aria-hidden="true">↓</strong><span>向下探索</span></p>
       </section>
 
-      <section className="welcome-intro welcome-section welcome-reveal welcome-entrance welcome-motion-intro" data-scroll-motion>
+      <section className="welcome-intro welcome-section welcome-reveal welcome-entrance welcome-motion-intro" data-scroll-motion data-contour-host>
+        <ContourField />
         <p className="welcome-kicker">训练不是随机发生的</p>
         <div><h2>为今天留出明确的下一步。</h2><p>不是更复杂的表格，也不是更多分心的数据。CwFitness 让计划、执行和回顾自然连成一条线，让你在每次训练开始时都知道该做什么。</p></div>
       </section>
 
-      <section className="welcome-feature welcome-section" id="method">
+      <section className="welcome-feature welcome-section" id="method" data-contour-host>
+        <ContourField />
         <div className="welcome-feature-copy welcome-reveal welcome-entrance welcome-motion-copy-left" data-scroll-motion><p className="welcome-index">01 / 03</p><p className="welcome-kicker">建立 Workout Plan</p><h2>先定义节奏，<br />再开始训练。</h2><p>用可重复的 Workout Day 安排每周。每个 Exercise、目标和组数都在开始前清楚就位。</p><a href="#flow">看看计划如何展开 <span aria-hidden="true">↘</span></a></div>
         <div className="welcome-plan-visual liquid-glass welcome-reveal welcome-entrance welcome-motion-tilt" id="flow" aria-label="Workout Plan 示例" data-scroll-motion>
           <div className="welcome-visual-top"><span>本周计划</span><b>第 2 周</b></div>
@@ -357,12 +403,14 @@ export function WelcomeExperience() {
 
       <section className="welcome-image-break welcome-reveal welcome-image-scene welcome-motion-image" data-scroll-motion><img src={imageSet[0].src} alt={imageSet[0].alt} /><div><p className="welcome-kicker">有计划，也有余地</p><h2>把注意力留给<br />眼前这一组。</h2></div></section>
 
-      <section className="welcome-feature welcome-feature-reverse welcome-section">
+      <section className="welcome-feature welcome-feature-reverse welcome-section" data-contour-host>
+        <ContourField />
         <div className="welcome-session-visual liquid-glass welcome-reveal welcome-entrance welcome-motion-tilt welcome-motion-session" aria-label="Workout Session 示例" data-scroll-motion><div className="welcome-session-header"><span>进行中的训练</span><b>28:42</b></div><h3>杠铃深蹲</h3><p>4 组 × 8 次 · 75 kg</p><div className="welcome-set-row complete"><span>01</span><b>8 × 75</b><i>完成</i></div><div className="welcome-set-row complete"><span>02</span><b>8 × 75</b><i>完成</i></div><div className="welcome-set-row current"><span>03</span><b>8 × 75</b><i>记录本组</i></div></div>
         <div className="welcome-feature-copy welcome-reveal welcome-entrance welcome-motion-copy-right" data-scroll-motion><p className="welcome-index">02 / 03</p><p className="welcome-kicker">完成 Workout Session</p><h2>记录你真正完成的训练。</h2><p>训练开始后，目标会固定下来。逐组记录重量、次数或时长，在节奏里完成，而不是在界面里周旋。</p></div>
       </section>
 
-      <section className="welcome-feature welcome-section">
+      <section className="welcome-feature welcome-section" data-contour-host>
+        <ContourField />
         <div className="welcome-feature-copy welcome-reveal welcome-entrance welcome-motion-copy-left" data-scroll-motion><p className="welcome-index">03 / 03</p><p className="welcome-kicker">查看 Plan Progress</p><h2>让长期变化，<br />有迹可循。</h2><p>只有已完成的 Workout Session 会成为进度的一部分。回看同一 Workout Plan 中的训练日期和 Exercise 趋势，判断下一步，而不是凭感觉猜测。</p></div>
         <div className="welcome-progress-visual liquid-glass welcome-reveal welcome-entrance welcome-motion-tilt welcome-motion-progress" aria-label="Plan Progress 视觉示例" data-scroll-motion><div className="welcome-visual-top"><span>训练记录示例</span><b>你的节奏</b></div><div className="welcome-progress-stat"><strong>记录</strong><span>已完成的 Workout Session</span></div><div className="welcome-chart" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="welcome-progress-footer"><span>周一</span><span>周三</span><span>周五</span><span>今天</span></div></div>
       </section>
@@ -371,9 +419,9 @@ export function WelcomeExperience() {
 
       <section className="welcome-principles" id="principles"><div className="welcome-principles-heading welcome-reveal welcome-motion-intro" data-scroll-motion><p className="welcome-kicker">CwFitness 的方式</p><h2>少一点噪音，<br />多一点确定。</h2></div><div className="welcome-principle-viewport" aria-label="产品原则" data-scroll-motion><div className="welcome-principle-track">{[...principles, ...principles].map(([title, copy], index) => <div className="welcome-principle-card" aria-hidden={index >= principles.length} key={`${title}-${index}`}><article className="liquid-glass"><span>0{(index % principles.length) + 1}</span><h3>{title}</h3><p>{copy}</p></article></div>)}</div></div></section>
 
-      <section className="welcome-stages welcome-section"><div className="welcome-stages-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">从今天开始</p><h2>一个更简单的<br />训练循环。</h2></div><div className="welcome-stage-grid">{[["规划", "创建 Workout Plan，让每周训练有共同的方向。"], ["训练", "从一个 Workout Day 开始，完成属于今天的 Workout Session。"], ["进步", "回顾 Plan Progress，带着真实记录继续前进。"]].map(([title, copy], index) => <article className="welcome-stage liquid-glass welcome-reveal welcome-motion-stage" data-scroll-motion key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{copy}</p><Link href="/auth?mode=sign-up">免费开始 <b aria-hidden="true">↗</b></Link></article>)}</div></section>
+      <section className="welcome-stages welcome-section" data-contour-host><ContourField /><div className="welcome-stages-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">从今天开始</p><h2>一个更简单的<br />训练循环。</h2></div><div className="welcome-stage-grid">{[["规划", "创建 Workout Plan，让每周训练有共同的方向。"], ["训练", "从一个 Workout Day 开始，完成属于今天的 Workout Session。"], ["进步", "回顾 Plan Progress，带着真实记录继续前进。"]].map(([title, copy], index) => <article className="welcome-stage liquid-glass welcome-reveal welcome-motion-stage" data-scroll-motion key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{copy}</p><Link href="/auth?mode=sign-up">免费开始 <b aria-hidden="true">↗</b></Link></article>)}</div></section>
 
-      <section className="welcome-faq welcome-section" id="questions"><div className="welcome-faq-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">常见问题</p><h2>开始之前，<br />你可能想知道。</h2></div><div className="welcome-faq-list welcome-reveal welcome-motion-faq" data-scroll-motion><details><summary>CwFitness 适合谁？</summary><p>适合希望自己规划、完成并回看训练的人。你不需要追随一套预设计划，产品从你的 Workout Plan 开始。</p></details><details><summary>我的训练记录会怎样被使用？</summary><p>它们用于呈现你自己的 Workout Session 与 Plan Progress，不会成为公开排行榜或社交内容。</p></details><details><summary>能否从简单计划开始？</summary><p>可以。先为一个 Workout Day 添加几个 Exercise，随着训练稳定下来再调整结构。</p></details></div></section>
+      <section className="welcome-faq welcome-section" id="questions" data-contour-host><ContourField /><div className="welcome-faq-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">常见问题</p><h2>开始之前，<br />你可能想知道。</h2></div><div className="welcome-faq-list welcome-reveal welcome-motion-faq" data-scroll-motion><details><summary>CwFitness 适合谁？</summary><p>适合希望自己规划、完成并回看训练的人。你不需要追随一套预设计划，产品从你的 Workout Plan 开始。</p></details><details><summary>我的训练记录会怎样被使用？</summary><p>它们用于呈现你自己的 Workout Session 与 Plan Progress，不会成为公开排行榜或社交内容。</p></details><details><summary>能否从简单计划开始？</summary><p>可以。先为一个 Workout Day 添加几个 Exercise，随着训练稳定下来再调整结构。</p></details></div></section>
 
       <section className="welcome-final"><div className="welcome-final-image" /><div className="welcome-final-content welcome-reveal welcome-motion-intro" data-scroll-motion><p className="welcome-kicker">从今天开始</p><h2>让训练，<br />持续发生。</h2><p>给每一次投入一个清晰的位置，再让时间为你留下答案。</p><Link className="welcome-primary" href="/auth?mode=sign-up">免费开始训练 <span aria-hidden="true">↗</span></Link></div></section>
       <footer className="welcome-footer"><Link className="welcome-brand" href="#top"><span aria-hidden="true" />CwFitness</Link><p>计划、完成、回顾。</p><Link href="/auth">登录</Link></footer>
