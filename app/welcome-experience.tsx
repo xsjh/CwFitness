@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, type CSSProperties } from "react";
 import Lenis from "lenis";
 
 const imageSet = [
@@ -17,7 +17,25 @@ const imageSet = [
     src: "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1600&q=85",
     alt: "健身训练中的杠铃",
   },
+  {
+    src: "https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?auto=format&fit=crop&w=1600&q=85",
+    alt: "深色背景中的训练动作分解",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1600&q=85",
+    alt: "训练者在器械上完成动作",
+  },
 ];
+
+// The gallery reads as one row that redistributes its own width: the hovered frame takes the space
+// the other three give up. Weights are fractions of the row and must sum to 1, because hover
+// reassigns that same budget — authoring them on any other scale makes "grow" shrink a wide frame.
+// Every resting weight stays below the hover share, so no frame is already as wide as the target.
+const galleryGrowth = [0.16, 0.33, 0.27, 0.24];
+
+// The four frames are intentionally offset from the baseline. Keeping the offsets in a single array
+// means the row can be re-staggered without touching the hover logic.
+const galleryLift = [0, 74, 22, 96];
 
 const principles = ["计划不替你猜测", "训练记录属于你", "进度来自已完成的训练"];
 
@@ -217,6 +235,51 @@ export function WelcomeExperience() {
     document.addEventListener("pointerleave", releaseTilt);
     window.addEventListener("blur", releaseTilt);
 
+    // Gallery accordion. Hovering one frame has to grow it AND shrink the other three together, so
+    // the row keeps filling its own width. Each frame's authored share lives in `data-gallery-rest`
+    // rather than being read back off the inline style: React owns that property, and a StrictMode
+    // remount runs this effect's cleanup between the two passes, so reading the DOM value back sees
+    // an empty string and every frame silently falls back to a uniform share.
+    const galleryFrames = [...document.querySelectorAll<HTMLElement>("[data-gallery-row] > figure")];
+    // The grown frame takes this share of the row. The rest split the remainder in proportion to
+    // their own resting weights, so every one of them shrinks and the row keeps its proportions.
+    const GROWN_WEIGHT = 0.46;
+    let galleryIndex = -1;
+
+    const applyGalleryGrowth = (activeIndex: number) => {
+      if (activeIndex === galleryIndex) return;
+      galleryIndex = activeIndex;
+      const restWeights = galleryFrames.map((frame) => Number(frame.dataset.galleryRest ?? 1));
+      const restTotal = restWeights.reduce(
+        (sum, weight, index) => index === activeIndex ? sum : sum + weight, 0,
+      );
+      const remaining = 1 - GROWN_WEIGHT;
+      for (let index = 0; index < galleryFrames.length; index++) {
+        const frame = galleryFrames[index];
+        const weight = activeIndex === -1
+          ? restWeights[index]
+          : index === activeIndex ? GROWN_WEIGHT : (restWeights[index] / restTotal) * remaining;
+        frame.style.setProperty("--gallery-grow", String(weight));
+        if (activeIndex === -1) delete frame.dataset.galleryActive;
+        else if (index === activeIndex) frame.dataset.galleryActive = "";
+        else delete frame.dataset.galleryActive;
+      }
+    };
+
+    const onGalleryPointerMove = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      const frame = target?.closest<HTMLElement>("[data-gallery-row] > figure") ?? null;
+      if (!frame) { applyGalleryGrowth(-1); return; }
+      // A pointer moving between two frames of the row must not flash the whole row back to rest:
+      // only the index that actually changed is re-applied.
+      applyGalleryGrowth(galleryFrames.indexOf(frame));
+    };
+    const onGalleryLeave = () => applyGalleryGrowth(-1);
+
+    const galleryRow = document.querySelector<HTMLElement>("[data-gallery-row]");
+    galleryRow?.addEventListener("pointermove", onGalleryPointerMove, { passive: true });
+    galleryRow?.addEventListener("pointerleave", onGalleryLeave);
+
     return () => {
       observer?.disconnect();
       stopObservingLenis?.();
@@ -226,7 +289,15 @@ export function WelcomeExperience() {
       window.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerleave", releaseTilt);
       window.removeEventListener("blur", releaseTilt);
+      galleryRow?.removeEventListener("pointermove", onGalleryPointerMove);
+      galleryRow?.removeEventListener("pointerleave", onGalleryLeave);
       if (tiltFrame) cancelAnimationFrame(tiltFrame);
+      // Restore the authored weight rather than removing the property: React set it from the style
+      // prop and will not re-apply it, so removal would leave the frame with no weight at all.
+      for (const frame of galleryFrames) {
+        frame.style.setProperty("--gallery-grow", frame.dataset.galleryRest ?? "1");
+        delete frame.dataset.galleryActive;
+      }
       for (const panel of tiltPanels) {
         for (const property of ["--tilt-yaw", "--tilt-pitch", "--tilt-shift-x", "--tilt-shift-y", "--glass-light-x", "--glass-light-y"]) {
           panel.style.removeProperty(property);
@@ -291,7 +362,7 @@ export function WelcomeExperience() {
         <div className="welcome-progress-visual liquid-glass welcome-reveal welcome-entrance welcome-motion-tilt welcome-motion-progress" aria-label="Plan Progress 视觉示例" data-scroll-motion><div className="welcome-visual-top"><span>训练记录示例</span><b>你的节奏</b></div><div className="welcome-progress-stat"><strong>记录</strong><span>已完成的 Workout Session</span></div><div className="welcome-chart" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="welcome-progress-footer"><span>周一</span><span>周三</span><span>周五</span><span>今天</span></div></div>
       </section>
 
-      <section className="welcome-gallery welcome-section"><div className="welcome-gallery-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">清醒地训练</p><h2>有结构，<br />才能更专注。</h2></div><div className="welcome-gallery-grid"><figure className="welcome-reveal welcome-motion-gallery" data-scroll-motion><img src={imageSet[1].src} alt={imageSet[1].alt} /></figure><figure className="welcome-reveal welcome-motion-gallery" data-scroll-motion><img src={imageSet[2].src} alt={imageSet[2].alt} /></figure></div></section>
+      <section className="welcome-gallery welcome-section"><div className="welcome-gallery-heading welcome-reveal welcome-motion-copy-left" data-scroll-motion><p className="welcome-kicker">清醒地训练</p><h2>有结构，<br />才能更专注。</h2></div><div className="welcome-gallery-grid" data-gallery-row>{(imageSet.slice(1) as Array<{ src: string; alt: string }>).map((image, index) => <figure className="welcome-reveal welcome-motion-gallery" data-scroll-motion data-gallery-rest={galleryGrowth[index]} key={image.src} style={{ "--gallery-lift": `${galleryLift[index]}px`, "--gallery-grow": `${galleryGrowth[index]}` } as CSSProperties}><img src={image.src} alt={image.alt} /></figure>)}</div></section>
 
       <section className="welcome-principles" id="principles"><div className="welcome-principles-heading welcome-reveal welcome-motion-intro" data-scroll-motion><p className="welcome-kicker">CwFitness 的方式</p><h2>少一点噪音，<br />多一点确定。</h2></div><div className="welcome-principle-track" aria-label="产品原则">{[...principles, ...principles].map((principle, index) => <article className="liquid-glass" key={`${principle}-${index}`}><span>0{(index % 3) + 1}</span><h3>{principle}</h3><p>{index % 3 === 0 ? "清晰的目标，让每次开始都更容易。" : index % 3 === 1 ? "你的计划、记录和历史只服务于你的训练。" : "把已经发生的事变成下一次选择的依据。"}</p></article>)}</div></section>
 

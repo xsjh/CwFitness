@@ -62,7 +62,7 @@ describe("WelcomeExperience", () => {
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("welcome-motion-tilt");
     expect(screen.getByLabelText("Workout Session 示例").className).toContain("welcome-motion-session");
     expect(screen.getByLabelText("Plan Progress 视觉示例").className).toContain("welcome-motion-progress");
-    expect(document.querySelectorAll(".welcome-motion-gallery")).toHaveLength(2);
+    expect(document.querySelectorAll(".welcome-motion-gallery")).toHaveLength(4);
     expect(document.querySelectorAll(".welcome-motion-stage")).toHaveLength(3);
   });
 
@@ -324,5 +324,54 @@ describe("WelcomeExperience", () => {
 
     globalThis.requestAnimationFrame = originalRaf;
     globalThis.cancelAnimationFrame = originalCancelRaf;
+  });
+
+  it("grows the hovered gallery frame and shrinks the other three", () => {
+    render(<WelcomeExperience />);
+
+    const row = document.querySelector<HTMLElement>("[data-gallery-row]");
+    expect(row).toBeTruthy();
+    const frames = [...row!.querySelectorAll<HTMLElement>("figure")];
+    expect(frames).toHaveLength(4);
+
+    // Each frame carries its own authored resting weight, so the row is staggered by design rather
+    // than by a uniform share.
+    const rest = frames.map((frame) => Number(frame.style.getPropertyValue("--gallery-grow")));
+    expect(rest.every((weight) => weight > 0)).toBe(true);
+    expect(new Set(rest).size).toBeGreaterThan(1);
+
+    // Hovering one frame grows it and shrinks every other frame, with the row keeping its total.
+    const total = (list: HTMLElement[]) => list.reduce((sum, frame) => sum + Number(frame.style.getPropertyValue("--gallery-grow")), 0);
+    expect(total(frames)).toBeCloseTo(1, 6);
+
+    const hovered = frames[2];
+    hovered.dispatchEvent(new MouseEvent("pointermove", { bubbles: true }));
+    const grown = Number.parseFloat(hovered.style.getPropertyValue("--gallery-grow"));
+    expect(grown).toBeGreaterThan(rest[2]);
+    for (const index of [0, 1, 3]) {
+      expect(Number.parseFloat(frames[index].style.getPropertyValue("--gallery-grow"))).toBeLessThan(rest[index]);
+    }
+    expect(total(frames)).toBeCloseTo(1, 6);
+    expect(hovered.hasAttribute("data-gallery-active")).toBe(true);
+    expect(frames[0].hasAttribute("data-gallery-active")).toBe(false);
+
+    // Every frame has to be growable: a resting weight above the hover share would make "grow" a
+    // shrink for that frame, which is the bug this assertion exists to catch.
+    for (let index = 0; index < frames.length; index++) {
+      frames[index].dispatchEvent(new MouseEvent("pointermove", { bubbles: true }));
+      expect(Number.parseFloat(frames[index].style.getPropertyValue("--gallery-grow"))).toBeGreaterThan(rest[index]);
+    }
+
+    // Moving to a sibling must not flash the row back to rest: the newly hovered frame takes over
+    // directly and the previously hovered one shrinks.
+    frames[0].dispatchEvent(new MouseEvent("pointermove", { bubbles: true }));
+    expect(frames[0].hasAttribute("data-gallery-active")).toBe(true);
+    expect(hovered.hasAttribute("data-gallery-active")).toBe(false);
+    expect(Number.parseFloat(frames[0].style.getPropertyValue("--gallery-grow"))).toBeGreaterThan(rest[0]);
+
+    // Leaving the row restores every authored weight exactly.
+    row!.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    expect(frames.map((frame) => Number(frame.style.getPropertyValue("--gallery-grow")))).toEqual(rest);
+    expect(frames.some((frame) => frame.hasAttribute("data-gallery-active"))).toBe(false);
   });
 });
