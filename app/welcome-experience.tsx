@@ -68,20 +68,32 @@ export function WelcomeExperience() {
     if (observer) revealElements.forEach((element) => observer.observe(element));
     else revealElements.forEach((element) => element.classList.add("is-visible"));
 
+    // The image break owns a multi-part entrance, so it needs a direct visibility fallback rather
+    // than waiting for the generic observer's stricter section threshold. Lenis can interpolate
+    // its scroll position between native observer samples; this predicate is cheap and runs on the
+    // same scroll-progress update the page already performs.
+    const imageBreak = document.querySelector<HTMLElement>(".welcome-image-break");
+
     const updateScrollProgress = () => {
       const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = scrollableHeight > 0 ? Math.min(window.scrollY / scrollableHeight, 1) : 0;
       document.documentElement.style.setProperty("--welcome-scroll-progress", progress.toFixed(4));
       document.documentElement.dataset.welcomeScrolled = progress > 0.018 ? "true" : "false";
+      if (imageBreak) {
+        const box = imageBreak.getBoundingClientRect();
+        if (box.top < window.innerHeight * 0.78 && box.bottom > window.innerHeight * 0.22) {
+          imageBreak.classList.add("is-visible");
+        }
+      }
 
     };
     updateScrollProgress();
+    window.addEventListener("scroll", updateScrollProgress, { passive: true });
     window.addEventListener("resize", updateScrollProgress);
     const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const forceMotion = document.querySelector(".welcome-page")?.getAttribute("data-force-motion") === "true";
     const lenis = reducedMotion && !forceMotion ? undefined : new Lenis({ autoRaf: true, anchors: true, lerp: 0.075, wheelMultiplier: 1.1 });
     const stopObservingLenis = lenis?.on("scroll", updateScrollProgress);
-    if (!lenis) window.addEventListener("scroll", updateScrollProgress, { passive: true });
 
     // Pointer-driven pose for the three liquid-glass showcases.
     //

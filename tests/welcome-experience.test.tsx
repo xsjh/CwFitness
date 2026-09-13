@@ -53,6 +53,22 @@ describe("WelcomeExperience", () => {
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("is-visible");
   });
 
+  it("starts the image-break entrance when its section enters the reading window", () => {
+    render(<WelcomeExperience />);
+
+    const imageBreak = document.querySelector<HTMLElement>(".welcome-image-break")!;
+    const originalRect = imageBreak.getBoundingClientRect;
+    const originalInnerHeight = window.innerHeight;
+    imageBreak.getBoundingClientRect = () => ({ x: 0, y: 160, width: 1200, height: 700, top: 160, left: 0, right: 1200, bottom: 860, toJSON: () => ({}) }) as DOMRect;
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 });
+
+    window.dispatchEvent(new Event("scroll"));
+    expect(imageBreak.className).toContain("is-visible");
+
+    imageBreak.getBoundingClientRect = originalRect;
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
+  });
+
   it("renders an expanded, seamless product-principles card track", () => {
     render(<WelcomeExperience />);
 
