@@ -4,7 +4,7 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   const email = `browser-smoke-${crypto.randomUUID()}@example.com`;
   const password = "browser-smoke-password";
 
-  await page.goto("/");
+  await page.goto("/auth");
   await page.getByRole("button", { name: "注册" }).click();
   await page.getByLabel("称呼").fill("Browser Smoke");
   await page.getByLabel("邮箱").fill(email);

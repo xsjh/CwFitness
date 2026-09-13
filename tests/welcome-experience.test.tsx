@@ -49,7 +49,7 @@ describe("WelcomeExperience", () => {
     expect(screen.queryByText(/\$\d/)).toBeNull();
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("welcome-entrance");
     expect(screen.getByLabelText("Plan Progress 视觉示例").className).toContain("welcome-entrance");
-    expect(screen.getByRole("img", { name: "深色健身房中的力量训练器械" }).closest(".welcome-image-scene")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "健身房训练者用腹肌轮专注完成训练动作" }).closest(".welcome-image-scene")).toBeTruthy();
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("is-visible");
   });
 
@@ -78,6 +78,50 @@ describe("WelcomeExperience", () => {
     expect(viewport?.querySelectorAll(".welcome-principle-card")).toHaveLength(10);
     expect(screen.getAllByText("动作清单保持简洁")).toHaveLength(2);
     expect(screen.getAllByText("节奏由你自己定义")).toHaveLength(2);
+  });
+
+  it("renders grounded, seamless ribbons with explicit opposing directions", () => {
+    render(<WelcomeExperience />);
+
+    const ribbons = document.querySelectorAll<HTMLElement>("[data-scroll-ribbon]");
+    const tracks = document.querySelectorAll<HTMLElement>("[data-scroll-ribbon-track]");
+    expect(ribbons).toHaveLength(2);
+    expect(tracks).toHaveLength(2);
+    expect(tracks[0].dataset.ribbonDirection).toBe("left");
+    expect(tracks[1].dataset.ribbonDirection).toBe("right");
+    expect(tracks[0].querySelectorAll(".welcome-scroll-ribbon-segment")).toHaveLength(3);
+    expect(tracks[1].querySelectorAll(".welcome-scroll-ribbon-segment")).toHaveLength(3);
+    expect(screen.queryByText("TECHNIQUE ANALYSIS")).toBeNull();
+    expect(screen.queryByText("COACH NOTES")).toBeNull();
+  });
+
+  it("moves both ribbons without gaps only while the principles section covers the viewport", () => {
+    const originalInnerHeight = window.innerHeight;
+    const originalScrollY = window.scrollY;
+    const { unmount } = render(<WelcomeExperience />);
+    const principles = document.querySelector<HTMLElement>("#principles")!;
+    const ribbons = [...document.querySelectorAll<HTMLElement>("[data-scroll-ribbon]")];
+    const tracks = [...document.querySelectorAll<HTMLElement>("[data-scroll-ribbon-track]")];
+    principles.getBoundingClientRect = () => ({ top: -100, bottom: 1100 } as DOMRect);
+    for (const track of tracks) Object.defineProperty(track, "scrollWidth", { configurable: true, value: 900 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 100 });
+
+    window.dispatchEvent(new Event("scroll"));
+
+    expect(ribbons.every((ribbon) => ribbon.style.visibility === "visible")).toBe(true);
+    expect(tracks[0].style.transform).toBe("translate3d(-60.00px, 0, 0)");
+    expect(tracks[1].style.transform).toBe("translate3d(-240.00px, 0, 0)");
+
+    principles.getBoundingClientRect = () => ({ top: 100, bottom: 1300 } as DOMRect);
+    window.dispatchEvent(new Event("scroll"));
+    expect(ribbons.every((ribbon) => ribbon.style.visibility === "hidden")).toBe(true);
+
+    unmount();
+    expect(tracks.every((track) => track.style.transform === "")).toBe(true);
+    expect(ribbons.every((ribbon) => ribbon.style.visibility === "")).toBe(true);
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
+    Object.defineProperty(window, "scrollY", { configurable: true, value: originalScrollY });
   });
 
   it("assigns distinct scroll-triggered motion treatments below the hero", () => {

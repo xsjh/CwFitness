@@ -48,24 +48,22 @@ test("scrolling the image break into view starts its copy entrance", async ({ pa
   await expect(scene).toHaveClass(/is-visible/);
 });
 
-test("the image break softens both edges beyond the photo boundary", async ({ page }) => {
+test("the image break softens both edges inside the photo boundary", async ({ page }) => {
   await page.goto("/");
 
   const edgeLayer = page.locator(".welcome-image-break");
   const geometry = await edgeLayer.evaluate((element) => {
-    const section = element.getBoundingClientRect();
     const edge = getComputedStyle(element, "::before");
     return {
+      backgroundImage: edge.backgroundImage,
       bottom: Number.parseFloat(edge.bottom),
-      height: Number.parseFloat(edge.height),
-      sectionHeight: section.height,
       top: Number.parseFloat(edge.top),
     };
   });
 
-  expect(geometry.top).toBeLessThan(0);
-  expect(geometry.bottom).toBeLessThan(0);
-  expect(geometry.height).toBeGreaterThan(geometry.sectionHeight);
+  expect(geometry.top).toBe(0);
+  expect(geometry.bottom).toBe(0);
+  expect(geometry.backgroundImage).toContain("linear-gradient");
 });
 
 test("the image copy is still blurred when the scene first enters the reading area", async ({ page }) => {
@@ -218,12 +216,33 @@ test("product-principle cards reveal, keep moving left, and lift on hover", asyn
   await expect(track).toHaveCSS("animation-name", "welcome-marquee");
   await expect(track).toHaveCSS("animation-timing-function", "linear");
 
+  // The authored marquee is intentionally always moving, so Playwright cannot consider a card
+  // geometrically stable long enough to hover it. Pause only this test page after verifying the
+  // animation contract; the hover scale assertion remains a real computed-style check.
+  await track.evaluate((element) => { (element as HTMLElement).style.animationPlayState = "paused"; });
   const first = cards.first().locator("article");
   await first.hover();
   await page.waitForTimeout(220);
   const transform = await first.evaluate((element) => getComputedStyle(element).transform);
   expect(transform).not.toBe("none");
   expect(Number(transform.match(/^matrix\(([^,]+)/)?.[1])).toBeGreaterThan(1);
+});
+
+test("principle ribbons are seamless, directional, and hidden outside their section", async ({ page }) => {
+  await page.goto("/");
+
+  const ribbons = page.locator("[data-scroll-ribbon]");
+  const tracks = page.locator("[data-scroll-ribbon-track]");
+  await expect(ribbons).toHaveCount(2);
+  await expect(tracks).toHaveCount(2);
+  await expect(tracks.nth(0)).toHaveAttribute("data-ribbon-direction", "left");
+  await expect(tracks.nth(1)).toHaveAttribute("data-ribbon-direction", "right");
+  await expect(tracks.nth(0).locator(".welcome-scroll-ribbon-segment")).toHaveCount(3);
+  await expect(tracks.nth(1).locator(".welcome-scroll-ribbon-segment")).toHaveCount(3);
+  await expect(ribbons.nth(0)).toHaveCSS("position", "fixed");
+  await expect(ribbons.nth(0)).toHaveCSS("visibility", "hidden");
+  await expect(page.getByText("TECHNIQUE ANALYSIS")).toHaveCount(0);
+  await expect(page.getByText("COACH NOTES")).toHaveCount(0);
 });
 
 test("the forced-motion welcome page keeps its principle marquee when reduced motion is set", async ({ page }) => {

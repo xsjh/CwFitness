@@ -52,12 +52,13 @@ async function registerVerifiedUser(label) {
   return { cookie, email: email.toLowerCase() };
 }
 
-test('Home renders the interactive Split authentication flow', async () => {
+test('Home renders the public CwFitness welcome experience', async () => {
   const response = await fetch(baseUrl);
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /data-testid="auth-form"/);
-  assert.match(html, /继续训练。/);
+  assert.match(html, /class="welcome-page"/);
+  assert.match(html, /训练，需要一个能长期坚持的系统。/);
+  assert.match(html, /href="\/auth\?mode=sign-up"/);
 });
 
 test('A User can sign up and sign in without email verification', async () => {

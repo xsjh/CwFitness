@@ -34,7 +34,7 @@ function sessionProbe(page: Page) {
 /** Opens the auth screen and waits until it is interactive. */
 export async function gotoAuth(page: Page) {
   const hydrated = sessionProbe(page);
-  await page.goto("/");
+  await page.goto("/auth");
   await expect(page.getByTestId("auth-form")).toBeVisible();
   await hydrated;
 }
