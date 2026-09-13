@@ -136,6 +136,13 @@ test("product-principle cards reveal, keep moving left, and lift on hover", asyn
   expect(Number(transform.match(/^matrix\(([^,]+)/)?.[1])).toBeGreaterThan(1);
 });
 
+test("the forced-motion welcome page keeps its principle marquee when reduced motion is set", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+
+  await expect(page.locator(".welcome-principle-track")).toHaveCSS("animation-name", "welcome-marquee");
+});
+
 // The tilt writes custom properties, never `transform`, so reading the variables back would pass
 // even if a stylesheet rule or a CSS animation were overriding the transform that actually paints.
 // These read the projected matrix instead, and use screenshot bytes as the tie-breaker for
