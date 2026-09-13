@@ -85,12 +85,10 @@
 .welcome-page .welcome-image-media{position:absolute;inset:0;z-index:0;width:auto;max-width:none;overflow:hidden}
 .welcome-page .welcome-image-media>img{position:absolute;inset:0;transform:scale(1.1)!important;transform-origin:center;transition:transform 2200ms cubic-bezier(.16,1,.3,1)!important}
 .welcome-page .welcome-image-break.is-visible .welcome-image-media>img{transform:scale(1)!important}
-/* The edge veils are a graded effect, not a plate: the mask fades this layer out by 96px in from
-   each edge, so the photo is untouched in the middle. An ungraded `backdrop-filter: blur()` still
-   reads the WHOLE backdrop behind the layer and paints it everywhere the layer is opaque, which
-   smeared the photo's centre too. Giving the filter the same mask confines the blur to the two
-   transition bands, and the lighter veils keep the seam soft now that blur no longer carries it. */
-.welcome-page .welcome-image-break::before{position:absolute;top:-96px;right:0;bottom:-96px;left:0;z-index:1;height:auto;background:linear-gradient(to bottom,transparent 0,rgba(7,16,14,.9) 96px,rgba(7,16,14,.32) 20%,transparent 34%,transparent 66%,rgba(7,16,14,.32) 80%,rgba(7,16,14,.9) calc(100% - 96px),transparent 100%);content:"";pointer-events:none;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);-webkit-mask-image:linear-gradient(to bottom,transparent,#000 96px,#000 calc(100% - 96px),transparent);mask-image:linear-gradient(to bottom,transparent,#000 96px,#000 calc(100% - 96px),transparent);mask-clip:no-clip}
+/* Match the hero's natural dissolve into the page background (#07100e) at the top
+   and bottom. No backdrop-filter, no mask — the photo is left untouched in the
+   middle so the entrance scale animation reads as a sharp photograph. */
+.welcome-page .welcome-image-break::before{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,#07100e 0,transparent 12%,transparent 88%,#07100e 100%);content:"";pointer-events:none}
 .welcome-page .welcome-image-break::after{z-index:1}
 .welcome-page .welcome-image-break>div:not(.welcome-image-media){z-index:2}
 .welcome-page .welcome-image-line{display:block;opacity:0;filter:blur(10px);transform:translateY(26px)}
