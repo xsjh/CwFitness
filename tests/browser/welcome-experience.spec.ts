@@ -496,10 +496,22 @@ test("the commercial footer is a responsive, motion-quiet ending", async ({ page
   const footer = page.getByRole("contentinfo");
   await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
   await expect(footer).toBeVisible();
-  await expect(page.getByRole("heading", { name: /让训练有计划，\s*让进步有依据。/ })).toBeVisible();
+  await expect(footer.locator(".welcome-footer-intro")).toBeVisible();
   await expect(page.getByRole("navigation", { name: "页脚导航" })).toBeVisible();
   await expect(page.getByRole("link", { name: "训练方式", exact: true })).toHaveAttribute("href", "#method");
   await expect(page.getByLabel("备案与许可信息")).toContainText("[公安备案号占位]");
+
+  // The description stacks into its own lines, and every social mark stays square rather than
+  // collapsing into an ellipse on a narrow viewport.
+  const descriptionLines = await page.locator(".welcome-footer-intro span").evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().top));
+  expect(descriptionLines).toHaveLength(3);
+  expect(new Set(descriptionLines.map((top) => Math.round(top))).size).toBe(3);
+
+  const socialBoxes = await page.locator(".welcome-footer-social a").evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect()));
+  expect(socialBoxes).toHaveLength(4);
+  for (const box of socialBoxes) expect(Math.abs(box.width - box.height)).toBeLessThan(1);
 
   const layout = await footer.evaluate((element) => ({
     animationName: getComputedStyle(element).animationName,

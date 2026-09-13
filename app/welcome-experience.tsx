@@ -70,6 +70,53 @@ const ribbonBottomPhrases = [
   "CWFITNESS",
 ] as const;
 
+// The footer description is authored as explicit lines: each string is one rendered line, so the
+// break points are a copy decision rather than whatever the container width happens to produce.
+const footerIntroLines = [
+  "CwFitness 是一个训练计划与记录工具。",
+  "你建立每周的 Workout Plan，完成今天的 Workout Session，",
+  "再从已完成的训练里回看 Plan Progress。",
+] as const;
+
+// Brand marks are inlined rather than pulled from an icon package: four paths are cheaper than a
+// dependency, and inlining keeps the fill on currentColor so the marks inherit the footer's muted
+// tone and its hover state without a second rule.
+const socialIcons = {
+  instagram: (
+    <>
+      <rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.1" />
+      <circle cx="12" cy="12" r="4.05" />
+      <circle cx="17.15" cy="6.9" r="1.15" fill="currentColor" stroke="none" />
+    </>
+  ),
+  x: (
+    <>
+      <path d="M3.9 3.4h4.05l4.06 5.63 4.4-5.63h3.06l-6.02 7.5 6.42 8.7h-4.05l-4.3-5.96-4.68 5.96H3.78l6.3-7.83z" fill="currentColor" stroke="none" />
+      <path d="M16.6 20.2 6.9 3.7" fill="none" stroke="none" />
+    </>
+  ),
+  wechat: (
+    <>
+      <path d="M9.05 4.35c-3.42 0-6.2 2.32-6.2 5.18 0 1.64.92 3.1 2.36 4.05l-.6 1.83 2.1-1.1c.72.2 1.5.31 2.34.31.24 0 .48-.01.71-.03-.15-.5-.23-1.03-.23-1.57 0-3.05 2.87-5.52 6.4-5.52.25 0 .49.01.73.04-.55-1.85-2.53-3.19-4.86-3.19z" />
+      <path d="M20.9 13.02c0-2.36-2.32-4.28-5.18-4.28s-5.18 1.92-5.18 4.28 2.32 4.28 5.18 4.28c.68 0 1.33-.1 1.93-.29l1.74.91-.5-1.51c1.2-.78 1.99-2 1.99-3.39z" />
+    </>
+  ),
+  youtube: (
+    <>
+      <rect x="2.6" y="5.4" width="18.8" height="13.2" rx="4.1" />
+      <path d="M10.35 9.35l4.9 2.65-4.9 2.65z" fill="currentColor" stroke="none" />
+    </>
+  ),
+} as const;
+
+// Placeholder handles, matching the footer's existing mailto:...example placeholder convention.
+const socialLinks = [
+  { key: "instagram", label: "Instagram", href: "https://instagram.com/cwfitness" },
+  { key: "x", label: "X", href: "https://x.com/cwfitness" },
+  { key: "wechat", label: "微信", href: "https://weixin.qq.com/cwfitness" },
+  { key: "youtube", label: "YouTube", href: "https://youtube.com/@cwfitness" },
+] as const;
+
 const ribbonCopies = 3;
 type RibbonDirection = "left" | "right";
 
@@ -496,8 +543,18 @@ export function WelcomeExperience() {
         <div className="welcome-footer-main">
           <div className="welcome-footer-brand">
             <Link className="welcome-brand" href="#top"><span aria-hidden="true" />CwFitness</Link>
-            <h2 id="welcome-footer-title">让训练有计划，<br />让进步有依据。</h2>
-            <p>从 Workout Plan 到每一次 Workout Session，把长期坚持落在清晰、可回顾的记录里。</p>
+            <p id="welcome-footer-title" className="welcome-footer-intro">
+              {footerIntroLines.map((line) => <span key={line}>{line}</span>)}
+            </p>
+            <ul className="welcome-footer-social" aria-label="社交媒体">
+              {socialLinks.map((social) => (
+                <li key={social.key}>
+                  <a href={social.href} aria-label={social.label} target="_blank" rel="noreferrer noopener">
+                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">{socialIcons[social.key]}</svg>
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
           <nav className="welcome-footer-nav" aria-label="页脚导航">
             <div><p>产品</p><a href="#method">训练方式</a><a href="#principles">产品原则</a><a href="#questions">常见问题</a></div>

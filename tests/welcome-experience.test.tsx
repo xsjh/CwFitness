@@ -53,12 +53,36 @@ describe("WelcomeExperience", () => {
     expect(screen.getByLabelText("Workout Plan 示例").className).toContain("is-visible");
   });
 
+  it("opens with a short product description and reachable social handles instead of a footer slogan", () => {
+    render(<WelcomeExperience />);
+
+    const footer = screen.getByRole("contentinfo");
+    const intro = footer.querySelector<HTMLElement>(".welcome-footer-intro")!;
+    expect(intro.textContent).toContain("CwFitness 是一个训练计划与记录工具。");
+    // The intro is the footer's accessible label now that the slogan heading is gone, so it has to
+    // carry the id the landmark points at and render as its own stacked, readable lines.
+    expect(intro.getAttribute("id")).toBe("welcome-footer-title");
+    expect(intro.querySelectorAll("span")).toHaveLength(3);
+    expect(screen.queryByRole("heading", { name: /让训练有计划/ })).toBeNull();
+    // The removed slogan was the only footer <h2>; nothing should have taken its place.
+    expect(footer.querySelector("h2")).toBeNull();
+
+    expect(screen.getByLabelText("社交媒体").querySelectorAll("a")).toHaveLength(4);
+    expect(screen.getByRole("link", { name: "Instagram" }).getAttribute("href")).toBe("https://instagram.com/cwfitness");
+    expect(screen.getByRole("link", { name: "微信" }).getAttribute("href")).toBe("https://weixin.qq.com/cwfitness");
+    for (const name of ["Instagram", "X", "微信", "YouTube"]) {
+      const link = screen.getByRole("link", { name });
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toContain("noopener");
+      expect(link.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 24 24");
+    }
+  });
+
   it("ends with a commercial footer that clearly labels placeholder compliance details", () => {
     render(<WelcomeExperience />);
 
     const footer = screen.getByRole("contentinfo");
     expect(footer.getAttribute("aria-labelledby")).toBe("welcome-footer-title");
-    expect(screen.getByRole("heading", { name: /让训练有计划，\s*让进步有依据。/ })).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "页脚导航" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "训练方式" }).getAttribute("href")).toBe("#method");
     expect(screen.getByRole("link", { name: "免费注册" }).getAttribute("href")).toBe("/auth?mode=sign-up");
