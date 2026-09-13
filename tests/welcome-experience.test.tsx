@@ -208,23 +208,18 @@ describe("WelcomeExperience", () => {
     expect(panels[0].style.getPropertyValue("--tilt-yaw")).toBe("");
     expect(panels[0].hasAttribute("data-tilt-live")).toBe(false);
 
-    // Pointer to the panel's left edge: the panel leans left, and the highlight moves to the
-    // opposite side, which is the side a real light would reflect from.
+    // Pointer to the panel's left edge: the panel leans left.
     window.dispatchEvent(new MouseEvent("pointermove", { clientX: 410, clientY: 520 }));
     settle();
     const leftYaw = Number.parseFloat(panels[0].style.getPropertyValue("--tilt-yaw"));
-    const leftLightX = Number.parseFloat(panels[0].style.getPropertyValue("--glass-light-x"));
     expect(panels[0].hasAttribute("data-tilt-live")).toBe(true);
     expect(leftYaw).toBeLessThan(0);
-    expect(leftLightX).toBeGreaterThan(50);
 
     // Pointer to the right edge: the sign of the yaw has to flip.
     window.dispatchEvent(new MouseEvent("pointermove", { clientX: 950, clientY: 520 }));
     settle();
     const rightYaw = Number.parseFloat(panels[0].style.getPropertyValue("--tilt-yaw"));
-    const rightLightX = Number.parseFloat(panels[0].style.getPropertyValue("--glass-light-x"));
     expect(rightYaw).toBeGreaterThan(0);
-    expect(rightLightX).toBeLessThan(leftLightX);
 
     // A pointer above the panel pitches it forward; below pitches it back.
     window.dispatchEvent(new MouseEvent("pointermove", { clientX: 680, clientY: 310 }));
@@ -245,6 +240,40 @@ describe("WelcomeExperience", () => {
     settle();
     expect(Math.abs(Number.parseFloat(panels[0].style.getPropertyValue("--tilt-yaw")))).toBeLessThan(0.05);
     expect(Math.abs(Number.parseFloat(panels[0].style.getPropertyValue("--tilt-pitch")))).toBeLessThan(0.05);
+
+    restore();
+  });
+
+  it("places the glass glow on the pointer and dims it when the pointer leaves that panel", () => {
+    const { settle, restore } = stubTiltEnvironment();
+
+    render(<WelcomeExperience />);
+    const panels = [...document.querySelectorAll<HTMLElement>(".welcome-motion-tilt")];
+
+    // The panel occupies x 400..960, y 300..740. A pointer inside it lands the glow on the same
+    // spot rather than on the side the panel leans away from — the old pose-derived reading.
+    window.dispatchEvent(new MouseEvent("pointermove", { clientX: 484, clientY: 388 }));
+    settle();
+    expect(panels[0].hasAttribute("data-tilt-live")).toBe(true);
+    const nearTopLeftX = Number.parseFloat(panels[0].style.getPropertyValue("--glass-light-x"));
+    const nearTopLeftY = Number.parseFloat(panels[0].style.getPropertyValue("--glass-light-y"));
+    expect(nearTopLeftX).toBeLessThan(20);
+    expect(nearTopLeftY).toBeLessThan(25);
+
+    // Moving to the opposite corner carries the glow across the panel with it.
+    window.dispatchEvent(new MouseEvent("pointermove", { clientX: 900, clientY: 700 }));
+    settle();
+    const nearBottomRightX = Number.parseFloat(panels[0].style.getPropertyValue("--glass-light-x"));
+    const nearBottomRightY = Number.parseFloat(panels[0].style.getPropertyValue("--glass-light-y"));
+    expect(nearBottomRightX).toBeGreaterThan(nearTopLeftX);
+    expect(nearBottomRightY).toBeGreaterThan(nearTopLeftY);
+
+    // A pointer elsewhere on the page must not light a panel up; that page-wide flag was the bug.
+    window.dispatchEvent(new MouseEvent("pointermove", { clientX: 1300, clientY: 120 }));
+    settle();
+    expect(panels[0].hasAttribute("data-tilt-live")).toBe(false);
+    expect(panels[1].hasAttribute("data-tilt-live")).toBe(false);
+    expect(panels[2].hasAttribute("data-tilt-live")).toBe(false);
 
     restore();
   });

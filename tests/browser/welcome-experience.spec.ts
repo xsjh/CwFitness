@@ -174,6 +174,49 @@ test("a liquid-glass showcase leans toward the pointer and returns to rest", asy
   expect(Math.abs(released.rotateY! - rest.rotateY!)).toBeLessThan(0.3);
 });
 
+test("the glass glow tracks the pointer inside the panel and fades out when it leaves", async ({ page }) => {
+  await page.goto("/");
+  const panel = page.locator(".welcome-plan-visual");
+  await panel.scrollIntoViewIfNeeded();
+  await panel.evaluate((element) => element.classList.add("is-visible"));
+  await page.waitForTimeout(700);
+
+  const glow = () => panel.evaluate((element) => {
+    const style = getComputedStyle(element, "::after");
+    return {
+      x: Number.parseFloat(style.getPropertyValue("--glass-light-x")),
+      y: Number.parseFloat(style.getPropertyValue("--glass-light-y")),
+      opacity: Number.parseFloat(style.opacity),
+    };
+  });
+
+  // At rest the highlight is not painted at all.
+  await expect(panel).not.toHaveAttribute("data-tilt-live", "");
+  expect((await glow()).opacity).toBe(0);
+
+  const box = (await panel.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.12, box.y + box.height * 0.2);
+  await page.waitForTimeout(900);
+  await expect(panel).toHaveAttribute("data-tilt-live", "");
+  const topLeft = await glow();
+  expect(topLeft.x).toBeLessThan(30);
+  expect(topLeft.y).toBeLessThan(35);
+  expect(topLeft.opacity).toBeGreaterThan(0.9);
+
+  // The glow follows the pointer rather than sitting on the panel's far side.
+  await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.8);
+  await page.waitForTimeout(900);
+  const bottomRight = await glow();
+  expect(bottomRight.x).toBeGreaterThan(topLeft.x + 30);
+  expect(bottomRight.y).toBeGreaterThan(topLeft.y + 30);
+
+  // Leaving the panel fades it back out instead of leaving it lit.
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(1400);
+  await expect(panel).not.toHaveAttribute("data-tilt-live", "");
+  expect((await glow()).opacity).toBeLessThan(0.1);
+});
+
 test("a showcase off screen does not take a pointer pose", async ({ page }) => {
   await page.goto("/");
   // Park at the very top so the lower showcases are far below the fold. The welcome page runs

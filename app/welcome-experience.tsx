@@ -75,9 +75,16 @@ export function WelcomeExperience() {
     const MAX_PITCH = 5;
     const MAX_SHIFT = 6;
     const FOLLOW_K = 7;
+    // The glow trails the pointer a touch slower than the pose does. A highlight that snaps to the
+    // cursor reads as a sticker under a torch; the lag is what makes it read as light on wet glass.
+    const GLOW_K = 5;
     const pointer = { x: -1, y: -1 };
     let pointerInside = false;
+    // The glow is a per-panel read of the pointer, so the hovered panel is tracked per panel rather
+    // than from one page-wide flag. `glowTarget` is the raw pointer offset in the panel's own box
+    // (-1..1 on each axis); `glow` is the damped value actually written out.
     const poses = new WeakMap<HTMLElement, { yaw: number; pitch: number; shiftX: number; shiftY: number }>();
+    const glows = new WeakMap<HTMLElement, { x: number; y: number; targetX: number; targetY: number; hovered: boolean }>();
     let tiltFrame = 0;
     let lastTiltTime = 0;
     let tiltRunning = false;
@@ -91,6 +98,7 @@ export function WelcomeExperience() {
       const dt = Math.min(Math.max((time - lastTiltTime) / 1000, 0), 0.05);
       lastTiltTime = time;
       const alpha = 1 - Math.exp(-FOLLOW_K * dt);
+      const glowAlpha = 1 - Math.exp(-GLOW_K * dt);
       let settled = true;
 
       // Read every rect before writing any property. Interleaving the two forces a synchronous
@@ -129,15 +137,31 @@ export function WelcomeExperience() {
         panel.style.setProperty("--tilt-pitch", `${pose.pitch.toFixed(3)}deg`);
         panel.style.setProperty("--tilt-shift-x", `${pose.shiftX.toFixed(2)}px`);
         panel.style.setProperty("--tilt-shift-y", `${pose.shiftY.toFixed(2)}px`);
-        // The glass highlight reflects from the side the panel leans away from, which is what makes
-        // the surface read as glass catching a light rather than a sticker with a gradient on it.
-        const lightX = 100 - ((pose.yaw / MAX_YAW) * 0.5 + 0.5) * 100;
-        const lightY = ((pose.pitch / MAX_PITCH) * 0.5 + 0.5) * 100;
-        panel.style.setProperty("--glass-light-x", `${lightX.toFixed(1)}%`);
-        panel.style.setProperty("--glass-light-y", `${lightY.toFixed(1)}%`);
 
+        // The glow is placed by the pointer's own coordinates inside this panel, not derived from the
+        // pose. Pointer above the panel's top edge (or left of it) is reachable while a neighbour is
+        // hovered, so the raw reading is clamped into the box rather than allowed to leave it.
+        const glow = glows.get(panel) ?? { x: 50, y: 50, targetX: 50, targetY: 50, hovered: false };
+        if (glow.hovered && box.width > 0 && box.height > 0) {
+          const rawX = ((pointer.x - box.x) / box.width) * 100;
+          const rawY = ((pointer.y - box.y) / box.height) * 100;
+          glow.targetX = Math.max(0, Math.min(100, rawX));
+          glow.targetY = Math.max(0, Math.min(100, rawY));
+        }
+        glow.x += (glow.targetX - glow.x) * glowAlpha;
+        glow.y += (glow.targetY - glow.y) * glowAlpha;
+        glows.set(panel, glow);
+        panel.style.setProperty("--glass-light-x", `${glow.x.toFixed(2)}%`);
+        panel.style.setProperty("--glass-light-y", `${glow.y.toFixed(2)}%`);
+
+        // A hovered panel has to keep ticking even after the pose settles, so the glow can finish
+        // converging; a released panel settles once the pose is at rest, exactly as before.
+        const glowSettled = !glow.hovered
+          ? true
+          : Math.abs(glow.targetX - glow.x) < 0.1 && Math.abs(glow.targetY - glow.y) < 0.1;
         if (Math.abs(target.yaw - pose.yaw) > 0.01 || Math.abs(target.pitch - pose.pitch) > 0.01
-          || Math.abs(target.shiftX - pose.shiftX) > 0.05 || Math.abs(target.shiftY - pose.shiftY) > 0.05) {
+          || Math.abs(target.shiftX - pose.shiftX) > 0.05 || Math.abs(target.shiftY - pose.shiftY) > 0.05
+          || !glowSettled) {
           settled = false;
         }
       }
@@ -158,12 +182,36 @@ export function WelcomeExperience() {
       pointer.x = event.clientX;
       pointer.y = event.clientY;
       pointerInside = true;
-      for (const panel of tiltPanels) panel.dataset.tiltLive = "";
-      startTilt();
+      let anyHovered = false;
+      // Hover is judged against each panel's own box. A pointer anywhere else on the page must not
+      // light a panel up: that page-wide flag was why a single mouse move left all three glowing.
+      for (const panel of tiltPanels) {
+        const box = panel.getBoundingClientRect();
+        const hovered = event.clientX >= box.left && event.clientX <= box.right
+          && event.clientY >= box.top && event.clientY <= box.bottom;
+        const glow = glows.get(panel) ?? { x: 50, y: 50, targetX: 50, targetY: 50, hovered: false };
+        glow.hovered = hovered;
+        glows.set(panel, glow);
+        if (hovered) {
+          panel.dataset.tiltLive = "";
+          anyHovered = true;
+        } else {
+          delete panel.dataset.tiltLive;
+        }
+      }
+      if (anyHovered) startTilt();
     };
     // A panel left frozen wherever the pointer happened to exit is a panel that lies about being
     // interactive. Release it back to the resting pose instead.
-    const releaseTilt = () => { pointerInside = false; startTilt(); };
+    const releaseTilt = () => {
+      pointerInside = false;
+      for (const panel of tiltPanels) {
+        const glow = glows.get(panel);
+        if (glow) glow.hovered = false;
+        delete panel.dataset.tiltLive;
+      }
+      startTilt();
+    };
 
     window.addEventListener("pointermove", onPointerMove, { passive: true });
     document.addEventListener("pointerleave", releaseTilt);
