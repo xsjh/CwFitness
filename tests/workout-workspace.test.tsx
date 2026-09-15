@@ -59,7 +59,7 @@ describe("WorkoutWorkspace", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/exercises", expect.anything()));
   });
 
-  it("enters the training view even when the refresh after starting a workout fails", async () => {
+  it("enters an immersive training page without the workspace navigation even when refresh fails", async () => {
     const workoutSession = {
       id: "session-1",
       status: "ACTIVE",
@@ -110,10 +110,14 @@ describe("WorkoutWorkspace", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<WorkoutWorkspace user={{ id: "user-1", name: "测试用户", email: "user@example.com" }} deviceId="device-1" onSignOut={vi.fn()} onAuthenticationLost={vi.fn().mockResolvedValue(false)} onAccountDeleted={vi.fn()} />);
+    expect(await screen.findByRole("navigation", { name: "主要导航" })).toBeTruthy();
     const startButton = await screen.findByRole("button", { name: "开始训练" });
     await userEvent.setup().click(startButton);
 
     expect(await screen.findByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeTruthy();
+    expect(screen.queryByRole("navigation", { name: "主要导航" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /用户菜单/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "训练" })).toBeNull();
     const recordButtons = screen.getAllByRole("button", { name: "记录完成" }) as HTMLButtonElement[];
     expect(recordButtons.length).toBeGreaterThan(0);
     expect(recordButtons.every((button) => !button.disabled)).toBe(true);

@@ -12,7 +12,8 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   await page.getByRole("button", { name: "注册" }).click();
   await expect(page.locator(".workspace-shell")).toBeVisible();
 
-  await page.getByRole("button", { name: "退出" }).click();
+  await page.getByRole("button", { name: /用户菜单/ }).click();
+  await page.getByRole("menuitem", { name: "退出登录" }).click();
   await expect(page.getByTestId("auth-form")).toBeVisible();
 
   await page.getByLabel("邮箱").fill(email);
@@ -63,7 +64,12 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   await expect(page.getByRole("button", { name: "更新记录" })).toBeVisible();
   await expect(page.getByText("第 1 组已记录。", { exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "退出" }).click();
+  await page.evaluate(() => fetch("/api/auth/sign-out", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  }));
+  await page.goto("/auth");
   await page.getByLabel("邮箱").fill(email);
   await page.getByRole("textbox", { name: /密码/ }).fill(password);
   await page.getByRole("button", { name: "登录" }).click();

@@ -5,7 +5,7 @@ import { expect, type Page } from "@playwright/test";
 
 export const PASSWORD = "browser-suite-password";
 
-type ViewLabel = "今日" | "计划" | "动作" | "历史" | "进展" | "设置" | "训练";
+type ViewLabel = "今日" | "计划" | "动作" | "历史" | "进展" | "设置";
 
 export function uniqueEmail(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}@example.com`;
@@ -125,6 +125,7 @@ export async function addPlannedExercise(
 export async function startWorkout(page: Page) {
   await page.locator(".day-title-row").getByRole("button", { name: "开始训练" }).click();
   await expect(page.getByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "主要导航" })).toHaveCount(0);
   await expect(page.locator('[data-testid="active-session"]')).toBeVisible();
 }
 
@@ -151,6 +152,7 @@ export async function recordSet(
 
 export async function completeWorkout(page: Page) {
   await page.getByRole("button", { name: "结束训练" }).click();
+  await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
   await expect(page.locator(".history-list")).toBeVisible();
 }
 

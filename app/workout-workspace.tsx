@@ -666,11 +666,12 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
   const todayDate = new Date().toLocaleDateString("en-CA", { timeZone: settings.timeZone });
   const todayTrainingSeconds = dailyTrainingTime(workoutSessions, todayDate);
   const suggestion = progress.find((item) => item.suggestion)?.suggestion;
+  const isTrainingView = view === "training";
 
   return (
-    <main className="workspace-shell">
+    <main className={`workspace-shell ${isTrainingView ? "training-workspace" : ""}`}>
       <div className="workspace-frame">
-        <header className="workspace-topbar">
+        {!isTrainingView && <header className="workspace-topbar">
           <div className="workspace-brand">
             <span className="brand-mark" aria-hidden="true" />
             <div><strong>CwFitness</strong></div>
@@ -682,10 +683,9 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
             <button type="button" disabled={offline} aria-current={view === "history" ? "page" : undefined} onClick={() => setView("history")}>历史</button>
             <button type="button" disabled={offline} aria-current={view === "progress" ? "page" : undefined} onClick={() => setView("progress")}>进展</button>
             <button type="button" disabled={offline} aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}>设置</button>
-            {session && <button type="button" aria-current={view === "training" ? "page" : undefined} onClick={() => setView("training")}>训练</button>}
           </nav>
           <UserMenu user={user} busy={busy} onSignOut={onSignOut} />
-        </header>
+        </header>}
 
         {notice && <p className={`workspace-notice ${notice.includes("失败") ? "error" : ""}`} role="status">{notice}</p>}
         {pendingSync > 0 && !syncError && <p className="workspace-notice recovery" role="status">{pendingSync} 项训练记录正在等待同步。</p>}

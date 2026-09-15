@@ -28,7 +28,7 @@ test("an account signs up, signs out, and signs back in @cross-browser", async (
   await signIn(page, { email });
 
   await expect(page.locator(".workspace-shell")).toBeVisible();
-  await expect(page.locator(".workspace-brand")).toContainText(email);
+  await expect(page.locator(".user-menu-trigger")).toContainText(`@${email.split("@")[0]}`);
 });
 
 test("a Workout Session records a set @cross-browser", async ({ page }) => {
