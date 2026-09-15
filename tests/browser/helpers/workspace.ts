@@ -65,7 +65,9 @@ export async function signIn(page: Page, options: { email: string; password?: st
 }
 
 export async function signOut(page: Page) {
-  await page.locator(".workspace-account").getByRole("button", { name: "退出" }).click();
+  const account = page.locator(".workspace-account");
+  await account.getByRole("button", { name: /用户菜单/ }).click();
+  await account.getByRole("menuitem", { name: "退出登录" }).click();
   await expect(page.getByTestId("auth-form")).toBeVisible();
 }
 

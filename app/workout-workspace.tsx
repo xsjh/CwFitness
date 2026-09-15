@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ExerciseLibrary, type NewExerciseInput } from "./exercise-library";
 import { PlanEditor, type PlannedExerciseInput } from "./plan-editor";
 import { TrainingPanel } from "./training-panel";
+import { UserMenu } from "./user-menu";
 import { WorkoutHistory } from "./workout-history";
 import { dailyTrainingTime, ProgressView } from "./progress-view";
 import { SettingsPanel } from "./settings-panel";
@@ -672,9 +673,9 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
         <header className="workspace-topbar">
           <div className="workspace-brand">
             <span className="brand-mark" aria-hidden="true" />
-            <div><strong>CwFitness</strong><span>{user.email}</span></div>
+            <div><strong>CwFitness</strong></div>
           </div>
-          <nav className="workspace-nav" aria-label="主要导航">
+          <nav className="workspace-nav liquid-glass" aria-label="主要导航">
             <button type="button" aria-current={view === "today" ? "page" : undefined} onClick={() => setView("today")}>今日</button>
             <button type="button" disabled={offline} aria-current={view === "plans" ? "page" : undefined} onClick={() => setView("plans")}>计划</button>
             <button type="button" disabled={offline} aria-current={view === "exercises" ? "page" : undefined} onClick={() => setView("exercises")}>动作</button>
@@ -683,10 +684,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
             <button type="button" disabled={offline} aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}>设置</button>
             {session && <button type="button" aria-current={view === "training" ? "page" : undefined} onClick={() => setView("training")}>训练</button>}
           </nav>
-          <div className="workspace-account">
-            <span>{user.name}</span>
-            <button className="action-button quiet" type="button" disabled={busy} onClick={onSignOut}>退出</button>
-          </div>
+          <UserMenu user={user} busy={busy} onSignOut={onSignOut} />
         </header>
 
         {notice && <p className={`workspace-notice ${notice.includes("失败") ? "error" : ""}`} role="status">{notice}</p>}
