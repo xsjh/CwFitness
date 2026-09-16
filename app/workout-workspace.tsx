@@ -728,7 +728,8 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
                         <>
                           <p className="section-kicker">{suggested.plan.name}</p>
                           <h2>{suggested.day.name}</h2>
-                          <p>{suggested.day.plannedExercises.length > 0 ? `${suggested.day.plannedExercises.length} 个动作已安排` : "先为这个训练日添加动作"}</p>
+                          <p className="today-primary-meta">{suggested.day.plannedExercises.length > 0 ? `${suggested.day.plannedExercises.length} 个动作已安排` : "先为这个训练日添加动作"}</p>
+                          <button className="today-plan-link" type="button" onClick={() => setView("plans")}>点击查看动作详情</button>
                           <button className="action-button primary large" type="button" disabled={busy || suggested.day.plannedExercises.length === 0} onClick={() => startWorkout(suggested.day)}>开始训练</button>
                         </>
                       ) : (

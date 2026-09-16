@@ -60,12 +60,12 @@ describe("WorkoutWorkspace", () => {
   });
 
   it("shows today's data as a bottom text summary without the plan-page prompt", async () => {
-    const plans = [{ id: "plan-1", name: "力量计划", archivedAt: null, version: 1, workoutDays: [{ id: "day-1", name: "腿部训练", suggestedWeekday: null, version: 1, plannedExercises: [{ id: "planned-1", exerciseId: "exercise-1", setCount: 3, targetValue: 8, weightGrams: 1000, position: 0, version: 1 }] }] }];
+    const plans = [{ id: "plan-1", name: "力量计划", archivedAt: null, accentColor: "sage", coverKey: "strength", version: 1, workoutDays: [{ id: "day-1", name: "腿部训练", suggestedWeekday: null, position: 0, version: 1, plannedExercises: [{ id: "planned-1", exerciseId: "exercise-1", setCount: 3, targetValue: 8, weightGrams: 1000, position: 0, version: 1, exercise: { id: "exercise-1", name: "深蹲", resistanceType: "WEIGHTED", targetType: "REPETITIONS", version: 1 } }] }] }];
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/plans") return Promise.resolve(Response.json({ plans }));
       if (url === "/api/plans/plan-1/progress") return Promise.resolve(Response.json({ progress: [] }));
-      if (url === "/api/exercises") return Promise.resolve(Response.json({ exercises: [{ id: "exercise-1", name: "深蹲" }] }));
+      if (url === "/api/exercises") return Promise.resolve(Response.json({ exercises: [{ id: "exercise-1", name: "深蹲", resistanceType: "WEIGHTED", targetType: "REPETITIONS", version: 1 }] }));
       if (url === "/api/workout-sessions/active") return Promise.resolve(Response.json({ workoutSession: null }));
       if (url === "/api/workout-sessions") return Promise.resolve(Response.json({ workoutSessions: [{ localStartDate: "2026-09-16", trainingTimeSeconds: 0 }] }));
       if (url === "/api/settings") return Promise.resolve(Response.json({ settings: { timeZone: "UTC", weightUnit: "kg" } }));
@@ -83,6 +83,9 @@ describe("WorkoutWorkspace", () => {
     expect(summary.textContent).toContain("计划进度：1 个计划 · 1 个训练日 · 1 个动作");
     expect(summary.querySelectorAll("p")).toHaveLength(3);
     expect(screen.queryByText("也可以进入计划页选择任意训练日。")).toBeNull();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "点击查看动作详情" }));
+    expect(await screen.findByRole("heading", { name: "安排训练日，定义每个动作的目标。" })).toBeTruthy();
   });
 
   it("opens settings as a modal from the User menu instead of the main navigation", async () => {
