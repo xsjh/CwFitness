@@ -59,6 +59,32 @@ describe("WorkoutWorkspace", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/exercises", expect.anything()));
   });
 
+  it("shows today's data as a bottom text summary without the plan-page prompt", async () => {
+    const plans = [{ id: "plan-1", name: "力量计划", archivedAt: null, version: 1, workoutDays: [{ id: "day-1", name: "腿部训练", suggestedWeekday: null, version: 1, plannedExercises: [{ id: "planned-1", exerciseId: "exercise-1", setCount: 3, targetValue: 8, weightGrams: 1000, position: 0, version: 1 }] }] }];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/plans") return Promise.resolve(Response.json({ plans }));
+      if (url === "/api/plans/plan-1/progress") return Promise.resolve(Response.json({ progress: [] }));
+      if (url === "/api/exercises") return Promise.resolve(Response.json({ exercises: [{ id: "exercise-1", name: "深蹲" }] }));
+      if (url === "/api/workout-sessions/active") return Promise.resolve(Response.json({ workoutSession: null }));
+      if (url === "/api/workout-sessions") return Promise.resolve(Response.json({ workoutSessions: [{ localStartDate: "2026-09-16", trainingTimeSeconds: 0 }] }));
+      if (url === "/api/settings") return Promise.resolve(Response.json({ settings: { timeZone: "UTC", weightUnit: "kg" } }));
+      if (url === "/api/backup/version") return Promise.resolve(Response.json({ dataVersion: 0 }));
+      if (url === "/api/privacy") return Promise.resolve(Response.json({ telemetryEnabled: false }));
+      return Promise.resolve(Response.json({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<WorkoutWorkspace user={{ id: "user-1", name: "测试用户", email: "user@example.com" }} deviceId="device-1" onSignOut={vi.fn()} onAuthenticationLost={vi.fn().mockResolvedValue(false)} onAccountDeleted={vi.fn()} />);
+
+    const summary = await screen.findByTestId("today-summary");
+    expect(summary.textContent).toContain("今日累计时长：0 分钟（尚未记录）");
+    expect(summary.textContent).toContain("最近完成日期：2026-09-16");
+    expect(summary.textContent).toContain("计划进度：1 个计划 · 1 个训练日 · 1 个动作");
+    expect(summary.querySelectorAll("p")).toHaveLength(3);
+    expect(screen.queryByText("也可以进入计划页选择任意训练日。")).toBeNull();
+  });
+
   it("opens settings as a modal from the User menu instead of the main navigation", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);

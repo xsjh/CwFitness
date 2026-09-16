@@ -712,7 +712,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
                       <p className="section-kicker">今日训练</p>
                       <h1 id="today-title">{session ? "有一场训练正在进行。" : "从建议训练日开始。"}</h1>
                     </div>
-                    <p>{session ? "目标已经锁定，可以继续记录。" : "也可以进入计划页选择任意训练日。"}</p>
+                    {session && <p>目标已经锁定，可以继续记录。</p>}
                   </header>
 
                   <div className="today-layout">
@@ -740,13 +740,13 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
                         </>
                       )}
                     </article>
-                    <div className="today-stats">
-                      <div><span>训练计划</span><strong>{plans.length}</strong></div>
-                      <div><span>动作</span><strong>{exercises.length}</strong></div>
-                      <div><span>训练日</span><strong>{allDays.length}</strong></div>
-                      <div><span>今日训练时间</span><strong>{Math.floor(todayTrainingSeconds / 60)} 分</strong></div>
-                      <div><span>最近完成</span><strong>{workoutSessions[0]?.localStartDate ?? "—"}</strong></div>
-                      {suggestion && <div><span>进阶建议</span><strong>{suggestion}</strong></div>}
+                    <div className="today-stats" data-testid="today-summary" aria-label="今日训练摘要">
+                      <p>今日累计时长：<strong>{Math.floor(todayTrainingSeconds / 60)} 分钟</strong>{todayTrainingSeconds === 0 && <em>（尚未记录）</em>}</p>
+                      <span aria-hidden="true">/</span>
+                      <p>最近完成日期：<strong>{workoutSessions[0]?.localStartDate ?? "尚未完成"}</strong></p>
+                      <span aria-hidden="true">/</span>
+                      <p>计划进度：<strong>{plans.length} 个计划 · {allDays.length} 个训练日 · {exercises.length} 个动作</strong></p>
+                      {suggestion && <p className="today-suggestion">进阶建议：<strong>{suggestion}</strong></p>}
                     </div>
                   </div>
                 </section>
