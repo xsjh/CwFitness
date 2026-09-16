@@ -86,7 +86,7 @@ describe("WorkoutWorkspace", () => {
     expect(screen.queryByRole("dialog", { name: "设置" })).toBeNull();
   });
 
-  it("keeps the sidebar navigation available while entering a training session even when refresh fails", async () => {
+  it("enters an immersive training page without the workspace navigation even when refresh fails", async () => {
     const workoutSession = {
       id: "session-1",
       status: "ACTIVE",
@@ -142,9 +142,9 @@ describe("WorkoutWorkspace", () => {
     await userEvent.setup().click(startButton);
 
     expect(await screen.findByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeTruthy();
-    expect(screen.getByRole("navigation", { name: "主要导航" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /用户菜单/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "今日" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByRole("navigation", { name: "主要导航" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /用户菜单/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "训练" })).toBeNull();
     const recordButtons = screen.getAllByRole("button", { name: "记录完成" }) as HTMLButtonElement[];
     expect(recordButtons.length).toBeGreaterThan(0);
     expect(recordButtons.every((button) => !button.disabled)).toBe(true);

@@ -132,7 +132,7 @@ export async function addPlannedExercise(
 export async function startWorkout(page: Page) {
   await page.locator(".day-title-row").getByRole("button", { name: "开始训练" }).click();
   await expect(page.getByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "主要导航" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "主要导航" })).toHaveCount(0);
   await expect(page.locator('[data-testid="active-session"]')).toBeVisible();
 }
 

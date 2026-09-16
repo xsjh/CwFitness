@@ -671,27 +671,22 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
 
   return (
     <main className={`workspace-shell ${isTrainingView ? "training-workspace" : ""}`}>
-      <aside className="workspace-sidebar" aria-label="训练空间侧栏">
-        <div className="workspace-sidebar-main">
+      <div className="workspace-frame">
+        {!isTrainingView && <header className="workspace-topbar">
           <div className="workspace-brand">
             <span className="brand-mark" aria-hidden="true" />
-            <div><strong>CwFitness</strong><small>训练空间</small></div>
+            <div><strong>CwFitness</strong></div>
           </div>
-          <p className="workspace-sidebar-label">训练空间</p>
           <nav className="workspace-nav liquid-glass" aria-label="主要导航">
-            <button type="button" aria-current={view === "today" || view === "training" ? "page" : undefined} onClick={() => setView("today")}><span className="workspace-nav-icon" aria-hidden="true" data-icon="⌂" /><span>今日</span></button>
-            <button type="button" disabled={offline} aria-current={view === "plans" ? "page" : undefined} onClick={() => setView("plans")}><span className="workspace-nav-icon" aria-hidden="true" data-icon="▦" /><span>计划</span></button>
-            <button type="button" disabled={offline} aria-current={view === "exercises" ? "page" : undefined} onClick={() => setView("exercises")}><span className="workspace-nav-icon" aria-hidden="true" data-icon="◈" /><span>动作</span></button>
-            <button type="button" disabled={offline} aria-current={view === "history" ? "page" : undefined} onClick={() => setView("history")}><span className="workspace-nav-icon" aria-hidden="true" data-icon="◷" /><span>历史</span></button>
-            <button type="button" disabled={offline} aria-current={view === "progress" ? "page" : undefined} onClick={() => setView("progress")}><span className="workspace-nav-icon" aria-hidden="true" data-icon="↗" /><span>进展</span></button>
+            <button type="button" aria-current={view === "today" ? "page" : undefined} onClick={() => setView("today")}>今日</button>
+            <button type="button" disabled={offline} aria-current={view === "plans" ? "page" : undefined} onClick={() => setView("plans")}>计划</button>
+            <button type="button" disabled={offline} aria-current={view === "exercises" ? "page" : undefined} onClick={() => setView("exercises")}>动作</button>
+            <button type="button" disabled={offline} aria-current={view === "history" ? "page" : undefined} onClick={() => setView("history")}>历史</button>
+            <button type="button" disabled={offline} aria-current={view === "progress" ? "page" : undefined} onClick={() => setView("progress")}>进展</button>
           </nav>
-        </div>
-        <div className="workspace-sidebar-account">
-          <p className="workspace-sidebar-label">账户</p>
           <UserMenu user={user} busy={busy} onSignOut={onSignOut} onOpenSettings={() => setSettingsOpen(true)} />
-        </div>
-      </aside>
-      <div className="workspace-frame">
+        </header>}
+
         {notice && <p className={`workspace-notice ${notice.includes("失败") ? "error" : ""}`} role="status">{notice}</p>}
         {pendingSync > 0 && !syncError && <p className="workspace-notice recovery" role="status">{pendingSync} 项训练记录正在等待同步。</p>}
         {syncError && (
