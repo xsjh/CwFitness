@@ -144,6 +144,15 @@ for (const viewport of VIEWPORTS) {
       expect(overlapping(boxes), `${view} controls overlap at ${viewport.name}`).toEqual([]);
 
       expect(await hoverOnly(page, ".workspace-body"), `${view} has controls that only appear on hover`).toEqual([]);
+
+      if (view !== "今日") {
+        const layout = await page.evaluate(() => ({
+          bodyOverflow: getComputedStyle(document.body).overflow,
+          topbarPosition: getComputedStyle(document.querySelector(".workspace-topbar")!).position,
+        }));
+        expect(layout.bodyOverflow, `${view} keeps the document scrollable`).not.toBe("hidden");
+        expect(layout.topbarPosition, `${view} keeps the top bar in document flow`).toBe("relative");
+      }
     }
 
     await openSettings(page);
