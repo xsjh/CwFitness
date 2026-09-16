@@ -59,6 +59,33 @@ describe("WorkoutWorkspace", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/exercises", expect.anything()));
   });
 
+  it("opens settings as a modal from the User menu instead of the main navigation", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/plans") return Promise.resolve(Response.json({ plans: [] }));
+      if (url === "/api/exercises") return Promise.resolve(Response.json({ exercises: [] }));
+      if (url === "/api/workout-sessions/active") return Promise.resolve(Response.json({ workoutSession: null }));
+      if (url === "/api/workout-sessions") return Promise.resolve(Response.json({ workoutSessions: [] }));
+      if (url === "/api/settings") return Promise.resolve(Response.json({ settings: { timeZone: "UTC", weightUnit: "kg" } }));
+      if (url === "/api/backup/version") return Promise.resolve(Response.json({ dataVersion: 0 }));
+      if (url === "/api/privacy") return Promise.resolve(Response.json({ telemetryEnabled: false }));
+      return Promise.resolve(Response.json({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<WorkoutWorkspace user={{ id: "user-1", name: "测试用户", email: "user@example.com" }} deviceId="device-1" onSignOut={vi.fn()} onAuthenticationLost={vi.fn().mockResolvedValue(false)} onAccountDeleted={vi.fn()} />);
+    const navigation = await screen.findByRole("navigation", { name: "主要导航" });
+    expect(navigation.textContent).not.toContain("设置");
+
+    await userEvent.setup().click(screen.getByRole("button", { name: /用户菜单/ }));
+    await userEvent.setup().click(screen.getByRole("menuitem", { name: "偏好设置" }));
+
+    expect(screen.getByRole("dialog", { name: "设置" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "让训练适合你。" })).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole("button", { name: "关闭设置" }));
+    expect(screen.queryByRole("dialog", { name: "设置" })).toBeNull();
+  });
+
   it("enters an immersive training page without the workspace navigation even when refresh fails", async () => {
     const workoutSession = {
       id: "session-1",

@@ -8,7 +8,7 @@ const testUser = { name: "测试用户", email: "user@example.com" };
 
 describe("UserMenu", () => {
   it("shows the User name and account handle beside an initial avatar", () => {
-    render(<UserMenu user={testUser} busy={false} onSignOut={vi.fn()} />);
+    render(<UserMenu user={testUser} busy={false} onSignOut={vi.fn()} onOpenSettings={vi.fn()} />);
 
     const trigger = screen.getByRole("button", { name: /测试用户 @user/ });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
@@ -18,19 +18,26 @@ describe("UserMenu", () => {
 
   it("opens placeholder options and keeps sign out available inside the secondary menu", async () => {
     const onSignOut = vi.fn().mockResolvedValue(undefined);
-    render(<UserMenu user={testUser} busy={false} onSignOut={onSignOut} />);
+    const onOpenSettings = vi.fn();
+    render(<UserMenu user={testUser} busy={false} onSignOut={onSignOut} onOpenSettings={onOpenSettings} />);
 
     const trigger = screen.getByRole("button", { name: /测试用户 @user/ });
     await userEvent.setup().click(trigger);
 
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByRole("menuitem", { name: /账户资料即将推出/ }).getAttribute("aria-disabled")).toBe("true");
+    await userEvent.setup().click(screen.getByRole("menuitem", { name: "偏好设置" }));
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+
+    await userEvent.setup().click(trigger);
     await userEvent.setup().click(screen.getByRole("menuitem", { name: "退出登录" }));
     expect(onSignOut).toHaveBeenCalledOnce();
   });
 
   it("closes on Escape and returns focus to the avatar trigger", async () => {
-    render(<UserMenu user={testUser} busy={false} onSignOut={vi.fn()} />);
+    render(<UserMenu user={testUser} busy={false} onSignOut={vi.fn()} onOpenSettings={vi.fn()} />);
     const user = userEvent.setup();
     const trigger = screen.getByRole("button", { name: /测试用户 @user/ });
 
@@ -46,7 +53,7 @@ describe("UserMenu", () => {
   it("closes when the User continues elsewhere and disables sign out while an operation is busy", async () => {
     render(
       <>
-        <UserMenu user={testUser} busy onSignOut={vi.fn()} />
+        <UserMenu user={testUser} busy onSignOut={vi.fn()} onOpenSettings={vi.fn()} />
         <button type="button">继续训练</button>
       </>,
     );

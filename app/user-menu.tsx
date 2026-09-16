@@ -6,6 +6,7 @@ type UserMenuProps = {
   user: { name: string; email: string };
   busy: boolean;
   onSignOut: () => Promise<void>;
+  onOpenSettings: () => void;
 };
 
 function accountHandle(email: string) {
@@ -16,7 +17,7 @@ function avatarLabel(name: string, email: string) {
   return (name.trim() || email.trim() || "U").slice(0, 1).toUpperCase();
 }
 
-export function UserMenu({ user, busy, onSignOut }: UserMenuProps) {
+export function UserMenu({ user, busy, onSignOut, onOpenSettings }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -76,7 +77,17 @@ export function UserMenu({ user, busy, onSignOut }: UserMenuProps) {
           </div>
           <div className="user-menu-divider" />
           <button type="button" role="menuitem" aria-disabled="true">账户资料<span>即将推出</span></button>
-          <button type="button" role="menuitem" aria-disabled="true">偏好设置<span>即将推出</span></button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              triggerRef.current?.focus();
+              onOpenSettings();
+            }}
+          >
+            偏好设置
+          </button>
           <button type="button" role="menuitem" aria-disabled="true">通知设置<span>即将推出</span></button>
           <div className="user-menu-divider" />
           <button className="user-menu-signout" type="button" role="menuitem" disabled={busy} onClick={() => void onSignOut()}>

@@ -5,7 +5,7 @@ import { expect, type Page } from "@playwright/test";
 
 export const PASSWORD = "browser-suite-password";
 
-type ViewLabel = "今日" | "计划" | "动作" | "历史" | "进展" | "设置";
+type ViewLabel = "今日" | "计划" | "动作" | "历史" | "进展";
 
 export function uniqueEmail(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}@example.com`;
@@ -73,6 +73,13 @@ export async function signOut(page: Page) {
 
 export async function openView(page: Page, label: ViewLabel) {
   await page.locator(".workspace-nav").getByRole("button", { name: label, exact: true }).click();
+}
+
+export async function openSettings(page: Page) {
+  const account = page.locator(".workspace-account");
+  await account.getByRole("button", { name: /用户菜单/ }).click();
+  await account.getByRole("menuitem", { name: "偏好设置" }).click();
+  await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
 }
 
 export async function createExercise(

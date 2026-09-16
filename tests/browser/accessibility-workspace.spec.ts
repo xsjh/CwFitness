@@ -1,6 +1,7 @@
 import { clipped, hoverOnly, measuredBoxes, overlapping, VIEWPORTS } from "./helpers/layout";
 import { expect, test, type Page } from "./helpers/test";
 import {
+  openSettings,
   openView,
   prepareWorkout,
   signUp,
@@ -135,7 +136,7 @@ for (const viewport of VIEWPORTS) {
     expect(navBox!.x).toBeGreaterThanOrEqual(0);
     expect(navBox!.x + navBox!.width).toBeLessThanOrEqual(viewport.width + 0.5);
 
-    for (const view of ["今日", "计划", "动作", "进展", "设置"] as const) {
+    for (const view of ["今日", "计划", "动作", "进展"] as const) {
       await openView(page, view);
       const boxes = await measuredBoxes(page, ".workspace-body");
       expect(boxes.length).toBeGreaterThan(0);
@@ -144,6 +145,14 @@ for (const viewport of VIEWPORTS) {
 
       expect(await hoverOnly(page, ".workspace-body"), `${view} has controls that only appear on hover`).toEqual([]);
     }
+
+    await openSettings(page);
+    const settingsBoxes = await measuredBoxes(page, ".settings-dialog");
+    expect(clipped(settingsBoxes, viewport.width), `settings controls outside the ${viewport.name} viewport`).toEqual([]);
+    expect(overlapping(settingsBoxes), `settings controls overlap at ${viewport.name}`).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "设置" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /用户菜单/ })).toBeFocused();
 
     await openView(page, "计划");
     await startWorkout(page);

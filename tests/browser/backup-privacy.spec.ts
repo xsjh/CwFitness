@@ -2,6 +2,7 @@ import { expect, test } from "./helpers/test";
 import {
   PASSWORD,
   createPlanWithDay,
+  openSettings,
   openView,
   prepareWorkout,
   reloadAuth,
@@ -17,7 +18,7 @@ test("a JSON backup is exported and restored over the current workspace", async 
   await signUp(page, { email: uniqueEmail("backup") });
   await prepareWorkout(page, { exercise, plan, day });
 
-  await openView(page, "设置");
+  await openSettings(page);
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "导出 JSON 备份" }).click(),
@@ -25,18 +26,20 @@ test("a JSON backup is exported and restored over the current workspace", async 
   const backupPath = await download.path();
   expect(backupPath).toBeTruthy();
   await expect(page.locator("p.workspace-notice").first()).toContainText("JSON 备份已导出。");
+  await page.getByRole("button", { name: "关闭设置" }).click();
 
   // Change the workspace after the export, so the restore has something to undo.
   await createPlanWithDay(page, { planName: "之后新增的计划", dayName: "临时训练日" });
   await expect(page.locator(".plan-index-item")).toHaveCount(2);
 
-  await openView(page, "设置");
+  await openSettings(page);
   await page.locator('input[type="file"]').setInputFiles(backupPath!);
   await expect(page.getByText("将替换：1 个计划")).toBeVisible();
   await page.getByRole("button", { name: "确认恢复并替换数据" }).click();
   // Restoring replaces the workspace and then notifies the other tabs, so either the
   // restore notice or the "data recovered" notice is the one left on screen.
   await expect(page.locator("p.workspace-notice").first()).toContainText(/备份已恢复|已检测到数据恢复/);
+  await page.getByRole("button", { name: "关闭设置" }).click();
 
   await openView(page, "计划");
   await expect(page.locator(".plan-index-item")).toHaveCount(1);
@@ -48,7 +51,7 @@ test("a User turns telemetry off and permanently deletes the account", async ({ 
   const email = uniqueEmail("deletion");
   await signUp(page, { email });
   await prepareWorkout(page, { exercise, plan, day });
-  await openView(page, "设置");
+  await openSettings(page);
 
   const privacy = page.locator("section.danger-zone").filter({ hasText: "隐私" });
   const telemetry = privacy.getByRole("checkbox");

@@ -7,7 +7,7 @@ import { TrainingPanel } from "./training-panel";
 import { UserMenu } from "./user-menu";
 import { WorkoutHistory } from "./workout-history";
 import { dailyTrainingTime, ProgressView } from "./progress-view";
-import { SettingsPanel } from "./settings-panel";
+import { SettingsDialog } from "./settings-panel";
 import {
   applySessionMutation,
   clearWorkoutSessionDraft,
@@ -72,6 +72,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
   const [settings, setSettings] = useState<{ timeZone: string; weightUnit: "kg" | "lb" }>({ timeZone: "UTC", weightUnit: "kg" });
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [view, setView] = useState<WorkspaceView>("today");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
@@ -682,9 +683,8 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
             <button type="button" disabled={offline} aria-current={view === "exercises" ? "page" : undefined} onClick={() => setView("exercises")}>动作</button>
             <button type="button" disabled={offline} aria-current={view === "history" ? "page" : undefined} onClick={() => setView("history")}>历史</button>
             <button type="button" disabled={offline} aria-current={view === "progress" ? "page" : undefined} onClick={() => setView("progress")}>进展</button>
-            <button type="button" disabled={offline} aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}>设置</button>
           </nav>
-          <UserMenu user={user} busy={busy} onSignOut={onSignOut} />
+          <UserMenu user={user} busy={busy} onSignOut={onSignOut} onOpenSettings={() => setSettingsOpen(true)} />
         </header>}
 
         {notice && <p className={`workspace-notice ${notice.includes("失败") ? "error" : ""}`} role="status">{notice}</p>}
@@ -787,7 +787,6 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
 
               {view === "history" && <WorkoutHistory workoutSessions={workoutSessions} busy={busy} weightUnit={settings.weightUnit} onCorrectSet={correctHistoricalSet} onDeleteSession={deleteHistoricalSession} />}
               {view === "progress" && <ProgressView plans={plans} workoutSessions={workoutSessions} progress={progress} weightUnit={settings.weightUnit} />}
-              {view === "settings" && <SettingsPanel settings={settings} busy={busy} telemetryEnabled={telemetryEnabled ?? true} onSave={saveSettings} onDelete={deleteAccount} onExport={exportBackup} onPreviewRestore={previewRestore} onRestore={restoreBackup} onTelemetryPreference={saveTelemetryPreference} onPrepareDelete={deletionSummary} />}
 
               {view === "training" && session && (
                 <TrainingPanel
@@ -812,6 +811,7 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
             </>
           )}
         </div>
+        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} busy={busy} telemetryEnabled={telemetryEnabled ?? true} onSave={saveSettings} onDelete={deleteAccount} onExport={exportBackup} onPreviewRestore={previewRestore} onRestore={restoreBackup} onTelemetryPreference={saveTelemetryPreference} onPrepareDelete={deletionSummary} />
       </div>
     </main>
   );
