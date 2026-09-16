@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>CwFitness · 计划页原型</title>
+  <style>
+    :root{
+      --text:rgba(255,255,255,.96);--muted:rgba(255,255,255,.62);--faint:rgba(255,255,255,.38);
+      --line:rgba(255,255,255,.12);--line-soft:rgba(255,255,255,.07);--accent:#c2db86;--danger:#e9a095;
+      --surface:rgba(16,18,19,.75);--surface-deep:rgba(10,12,13,.62);--raise:rgba(255,255,255,.055);
+      --ease:cubic-bezier(.23,1,.32,1);
+      font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;
+      color:var(--text);background:#070909;color-scheme:dark;font-synthesis:none;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:#070909}
+    body{overflow-x:hidden}
+    button,input,select{font:inherit}
+    button{color:inherit}
+    button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:2px}
+    h1,h2,h3,h4,p{margin:0}
+
+    #stage{min-height:100vh}
+    .shell{position:relative;isolation:isolate;min-height:100vh;margin:0 auto;padding:0 clamp(20px,5vw,96px) 176px}
+    .shell::before{content:"";position:fixed;inset:0;z-index:-2;background:linear-gradient(90deg,rgba(6,8,9,.95) 0%,rgba(6,8,9,.62) 44%,rgba(6,8,9,.3) 100%),url("https://images.unsplash.com/photo-1605296867724-fa87a8ef53fd?auto=format&fit=crop&w=2200&q=82") center/cover;filter:saturate(.5) brightness(.66)}
+    .shell::after{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(4,6,7,.06),rgba(4,6,7,.34) 56%,#090b0c 100%);pointer-events:none}
+
+    /* ── 顶栏：照抄现网 workspace-topbar + 居中胶囊导航 ── */
+    .topbar{display:flex;align-items:center;justify-content:space-between;min-height:86px;padding:24px 0}
+    .brand{display:flex;align-items:center;gap:11px;font-weight:800;letter-spacing:-.02em;font-size:16px}
+    .brand-mark{width:28px;height:28px;border-radius:9px;background:radial-gradient(circle at 30% 25%,#f2fad7,var(--accent) 48%,#4d6431);box-shadow:0 8px 26px rgba(180,215,115,.24)}
+    .nav{position:fixed;z-index:20;top:20px;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:4px;border-radius:999px;background:rgba(10,10,10,.82);-webkit-backdrop-filter:blur(12px) saturate(1.4);backdrop-filter:blur(12px) saturate(1.4);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 8px 24px rgba(0,0,0,.24)}
+    .nav button{height:28px;padding:0 13px;border:0;border-radius:999px;background:transparent;color:rgba(255,255,255,.55);font-size:13px;font-weight:600;cursor:pointer}
+    .nav button[aria-current=page]{color:#fff;background:rgba(255,255,255,.12);font-weight:700}
+    .avatar{width:38px;height:38px;border:0;border-radius:50%;background:linear-gradient(145deg,#cbd2c0,#576456);color:#111;font-weight:850;font-size:13px;cursor:pointer}
+
+    /* ── 页头 ── */
+    .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;margin:28px 0 30px}
+    .page-head h1{margin:6px 0 0;font-size:clamp(30px,3.4vw,44px);line-height:1.06;letter-spacing:-.035em}
+    .page-head .hint{max-width:330px;color:var(--faint);font-size:12px;line-height:1.6}
+    .kicker{margin:0;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+
+    /* ── 通用小件 ── */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:0 15px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:var(--raise);font-size:12px;font-weight:800;cursor:pointer;transition:background-color 140ms ease-out,border-color 140ms ease-out,transform 100ms var(--ease),opacity 140ms}
+    .btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.24)}
+    .btn:active{transform:scale(.97)}
+    .btn.primary{border-color:var(--accent);background:var(--accent);color:#11150d}
+    .btn.primary:hover{background:#d2e9a2}
+    .btn.danger{border-color:rgba(233,160,149,.28);color:#efb2aa;background:transparent}
+    .btn.danger:hover{background:rgba(233,160,149,.1)}
+    .btn.quiet{border-color:transparent;background:transparent;color:var(--muted)}
+    .btn.quiet:hover{background:rgba(255,255,255,.07);color:#fff}
+    .btn.sm{min-height:30px;padding:0 10px;font-size:11px;border-radius:7px}
+    .btn.icon{min-height:30px;width:30px;padding:0;border-color:transparent;background:transparent;color:var(--faint);font-size:14px}
+    .btn.icon:hover{background:rgba(255,255,255,.09);color:#fff}
+    .btn[aria-disabled=true],.btn:disabled{cursor:not-allowed;opacity:.42}
+    .btn[aria-disabled=true]:active,.btn:disabled:active{transform:none}
+    .tag{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;background:rgba(255,255,255,.07);color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.02em}
+    .tag.accent{background:rgba(194,219,134,.14);color:#d8eca8}
+    .tag.warn{background:rgba(244,213,141,.13);color:#f4d58d}
+    .field{display:grid;gap:6px;min-width:0}
+    .field>span{color:rgba(255,255,255,.6);font-size:11px;font-weight:700}
+    .field input,.field select{width:100%;height:38px;border:1px solid rgba(255,255,255,.13);border-radius:7px;padding:0 10px;color:#fff;background:rgba(0,0,0,.3);outline:none;transition:border-color 150ms ease-out,box-shadow 150ms ease-out}
+    .field input::placeholder{color:rgba(255,255,255,.28)}
+    .field input:focus,.field select:focus{border-color:rgba(194,219,134,.62);box-shadow:0 0 0 3px rgba(194,219,134,.1)}
+    .field select{appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,rgba(255,255,255,.7) 50%),linear-gradient(135deg,rgba(255,255,255,.7) 50%,transparent 50%);background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;background-color:rgba(0,0,0,.3)}
+    .field select option{color:#fff;background:#182021}
+    .field-row{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+    .empty{padding:30px 22px;border:1px dashed rgba(255,255,255,.15);border-radius:12px;color:var(--muted);font-size:12.5px;line-height:1.7;text-align:center}
+    .empty strong{display:block;margin-bottom:5px;color:var(--text);font-size:14px;font-weight:750}
+    .empty.left{text-align:left}
+    .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+    .meter{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+    .meter i{width:4px;border-radius:1.5px;background:rgba(255,255,255,.16)}
+    .meter i.on{background:var(--accent)}
+    .meter i.hi{background:#e2b96a}
+    .meter i.lo{background:rgba(233,160,149,.75)}
+    .inline-edit{position:relative;display:inline-flex;align-items:center;gap:6px}
+    .inline-edit>summary{list-style:none;cursor:pointer;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;color:var(--faint);font-size:13px}
+    .inline-edit>summary::-webkit-details-marker{display:none}
+    .inline-edit>summary:hover{background:rgba(255,255,255,.09);color:#fff}
+    .inline-edit[open]>summary{background:rgba(194,219,134,.14);color:#d8eca8}
+    .pop{position:absolute;z-index:30;top:calc(100% + 8px);right:0;width:min(340px,88vw);padding:14px;border:1px solid var(--line);border-radius:12px;background:#121516;box-shadow:0 22px 60px rgba(0,0,0,.5)}
+    .pop .pop-title{margin:0 0 11px;color:var(--muted);font-size:11px;font-weight:750}
+    .pop .field+.field{margin-top:10px}
+    .pop .pop-actions{display:flex;gap:8px;margin-top:13px}
+    .title-edit{border:0;background:transparent;color:inherit;cursor:text;text-align:left;padding:2px 6px;margin-left:-6px;border-radius:8px}
+    .title-edit:hover{background:rgba(255,255,255,.06)}
+    .title-edit::after{content:"✎";margin-left:9px;color:var(--faint);font-size:.5em;vertical-align:middle}
+    .title-input{border:1px solid rgba(194,219,134,.62);border-radius:8px;background:rgba(0,0,0,.34);color:#fff;font:inherit;font-weight:750;letter-spacing:inherit;padding:2px 8px;margin-left:-8px;outline:none;max-width:min(520px,100%)}
+
+    /* ── 列表 / 行：先定骨架，变体只换皮 ── */
+    .plans,.daylist,.plan-row-list{list-style:none;margin:0;padding:0}
+    .row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px}
+    .row .row-grip{display:grid;place-items:center;width:22px;height:26px;border:0;background:transparent;color:rgba(255,255,255,.24);font-size:12px;cursor:default}
+    .row .row-grip.up{color:var(--faint);cursor:pointer}
+    .row .row-grip.up:hover{color:#fff;background:rgba(255,255,255,.07);border-radius:6px}
+    .row .row-main{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;padding:12px 14px;border-radius:10px;cursor:pointer;text-align:left;border:1px solid transparent;background:transparent;width:100%}
+    .row .row-main:hover{background:rgba(255,255,255,.045)}
+    .row[data-selected] .row-main{background:rgba(194,219,134,.085);box-shadow:inset 0 0 0 1px rgba(194,219,134,.26)}
+    .row h4{font-size:14px;font-weight:750;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row .meta{display:block;margin-top:4px;color:var(--faint);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row .trail{display:flex;align-items:center;gap:8px;flex:none}
+
+    .add-inline{display:flex;align-items:center;gap:7px;margin-top:9px;padding:8px 4px 8px 34px;border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;border-radius:9px;width:100%;text-align:left}
+    .add-inline:hover{background:rgba(255,255,255,.05);color:#fff}
+    .add-inline i{font-style:normal;font-size:14px;line-height:1}
+
+    .editor{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface-deep);margin-top:10px}
+    .editor h4{margin-bottom:13px;font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.04em}
+    .editor .editor-foot{display:flex;gap:9px;margin-top:14px}
+
+    /* ── 动作行 ── */
+    .exercise{padding:15px 0;border-bottom:1px solid var(--line-soft)}
+    .exercise:last-child{border-bottom:0}
+    .exercise .ex-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+    .exercise h4{font-size:16px;font-weight:760;letter-spacing:-.015em}
+    .exercise .nums{margin-top:6px;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.84);font-size:13.5px}
+    .exercise .nums b{font-weight:750}
+    .exercise .nums span{color:var(--faint);margin:0 5px}
+    .exercise .ex-actions{display:flex;align-items:center;gap:6px;flex:none}
+    .recap{margin-top:9px}
+    .recap>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:8px;color:var(--faint);font-size:11px;padding:3px 0}
+    .recap>summary::-webkit-details-marker{display:none}
+    .recap>summary:hover{color:var(--muted)}
+    .recap>summary::after{content:"›";transform:rotate(90deg);transition:transform 180ms var(--ease)}
+    .recap[open]>summary::after{transform:rotate(-90deg)}
+    .recap-body{margin-top:9px;padding:12px 14px;border-left:2px solid rgba(194,219,134,.4);background:rgba(255,255,255,.03);border-radius:0 10px 10px 0}
+    .recap-body ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+    .recap-body li{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+    .recap-body .tip{margin:11px 0 0;padding-top:10px;border-top:1px solid var(--line-soft);color:#d8eca8;font-size:11.5px;line-height:1.55}
+    .archived-tray{margin-top:26px}
+
+    /* ── 变体 A：glass（复刻现网玻璃卡片语言） ── */
+    .vA .card{border-radius:26px;background:rgba(16,18,19,.75);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 0 0 1px var(--line)}
+    .vA .panel{padding:20px}
+    .vA .vA-grid{display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px}
+    .vA .panel-head{display:grid;gap:11px;margin-bottom:16px}
+    .vA .panel-head h2{font-size:15px;font-weight:800;letter-spacing:-.01em}
+    .vA .segmented{display:flex;gap:2px;padding:3px;border-radius:9px;background:rgba(255,255,255,.05)}
+    .vA .segmented button{flex:1;height:28px;padding:0 6px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+    .vA .segmented button[aria-pressed=true]{background:rgba(255,255,255,.12);color:#fff}
+    .vA .detail{padding:26px 28px}
+    .vA .detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+    .vA .detail-head h2{margin-top:7px;font-size:30px;font-weight:780;letter-spacing:-.035em}
+    .vA .detail-head .sub{margin-top:7px;color:var(--faint);font-size:12px}
+    .vA .day-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 6px}
+    .vA .chip{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid transparent;border-radius:999px;background:rgba(255,255,255,.055);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer}
+    .vA .chip:hover{background:rgba(255,255,255,.1);color:#fff}
+    .vA .chip[data-selected]{background:rgba(194,219,134,.14);box-shadow:inset 0 0 0 1px rgba(194,219,134,.34);color:#e8f4cd}
+    .vA .chip.add{border:1px dashed rgba(255,255,255,.2);background:transparent;color:var(--faint)}
+    .vA .chip.add[data-selected]{border-style:solid}
+    .vA .setup{margin-top:20px}
+    .vA .setup>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.04);color:var(--muted);font-size:12px;font-weight:750}
+    .vA .setup>summary::-webkit-details-marker{display:none}
+    .vA .setup>summary:hover{background:rgba(255,255,255,.075)}
+    .vA .setup[open]>summary{color:var(--text);background:rgba(255,255,255,.06)}
+    .vA .setup .setup-body{margin-top:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
+    .vA .ex-list{margin-top:22px;border-top:1px solid var(--line)}
+    .vA .day-cta{display:flex;align-items:center;gap:14px;margin-top:22px}
+    .vA .day-cta .locked{color:var(--faint);font-size:12px}
+
+    /* ── 变体 B：flat（几乎零玻璃、细线排版） ── */
+    .vB .vB-grid{display:grid;grid-template-columns:296px minmax(0,1fr);gap:0;border-top:1px solid var(--line)}
+    .vB .vB-aside{min-width:0;padding:18px 26px 40px 0;border-right:1px solid var(--line)}
+    .vB .vB-detail{min-width:0;padding:18px 0 40px 30px}
+    .vB .rail-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 4px 12px}
+    .vB .rail-head h2{color:var(--faint);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .vB .plan-row{margin-bottom:2px}
+    .vB .plan-row .row-main{padding:10px 12px}
+    .vB .plans{margin-bottom:14px}
+    .vB .daylist{padding-left:10px;margin-left:6px;border-left:1px solid var(--line-soft);margin-top:2px}
+    .vB .day-row .row-main{padding:8px 10px}
+    .vB .day-row .row-grip{width:18px;height:22px;font-size:10px}
+    .vB .add-inline{padding-left:28px;font-size:11.5px;margin-top:5px}
+    .vB .detail-head{padding-bottom:22px;border-bottom:1px solid var(--line)}
+    .vB .detail-head h2{margin-top:8px;font-size:clamp(30px,3.6vw,46px);font-weight:770;letter-spacing:-.042em}
+    .vB .detail-head .sub{margin-top:10px;color:var(--muted);font-size:12.5px}
+    .vB .detail-head .title-line{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+    .vB .detail-head .title-edit{margin-left:-10px}
+    .vB .meta-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;margin:22px 0 4px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--line)}
+    .vB .meta-strip>div{padding:13px 15px;background:#0c0f10}
+    .vB .meta-strip dt{color:var(--faint);font-size:10px;font-weight:750;letter-spacing:.09em;text-transform:uppercase}
+    .vB .meta-strip dd{margin:7px 0 0;font-size:14px;font-weight:750}
+    .vB .meta-strip dd small{display:block;margin-top:4px;color:var(--faint);font-size:10.5px;font-weight:600;letter-spacing:0}
+    .vB .strip-actions{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+    .vB .daytabs{display:flex;align-items:center;gap:20px;margin:26px 0 0;padding-bottom:0;border-bottom:1px solid var(--line);overflow-x:auto}
+    .vB .daytab{position:relative;flex:none;padding:0 0 13px;border:0;background:transparent;color:var(--faint);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+    .vB .daytab:hover{color:var(--muted)}
+    .vB .daytab[data-selected]{color:#fff}
+    .vB .daytab[data-selected]::after{content:"";position:absolute;right:0;bottom:-1px;left:0;height:2px;background:var(--accent);border-radius:2px}
+    .vB .daytab em{margin-left:6px;color:var(--faint);font-size:10.5px;font-style:normal;font-weight:650}
+    .vB .daytab[data-selected] em{color:var(--accent)}
+    .vB .daytab.add{border:0;color:var(--faint)}
+    .vB .ex-list{margin-top:26px;border-top:1px solid var(--line)}
+    .vB .exercise{padding:18px 2px}
+    .vB .search{display:flex;gap:8px;margin-top:14px}
+    .vB .search input{flex:1}
+    .vB .search-results{max-height:250px;overflow:auto;margin-top:10px;border:1px solid var(--line);border-radius:10px}
+    .vB .search-results button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;border:0;border-bottom:1px solid var(--line-soft);background:transparent;color:inherit;text-align:left;font-size:12.5px;cursor:pointer}
+    .vB .search-results button:last-child{border-bottom:0}
+    .vB .search-results button:hover{background:rgba(255,255,255,.06)}
+    .vB .search-results small{color:var(--faint);font-size:10.5px}
+    .vB .composer{margin-top:14px;padding:15px;border:1px solid var(--line);border-radius:12px;background:#0b0e0f}
+    .vB .composer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:12px}
+    .vB .locked-note{display:flex;align-items:center;gap:9px;margin-top:26px;color:var(--faint);font-size:11.5px}
+
+    /* ── 变体 C：console（把索引做成手机原生分组列表） ── */
+    .vC .vC-grid{display:grid;grid-template-columns:262px minmax(0,1fr);gap:14px}
+    .vC .phone{border-radius:30px;background:#0c0f10;box-shadow:inset 0 0 0 1px var(--line);padding:16px 12px 20px;min-height:560px}
+    .vC .phone-head{padding:4px 10px 14px;border-bottom:1px solid var(--line-soft)}
+    .vC .phone-head h2{font-size:12px;font-weight:800;letter-spacing:.03em}
+    .vC .phone-head p{margin-top:5px;color:var(--faint);font-size:10.5px}
+    .vC .grouplabel{padding:17px 10px 7px;color:var(--faint);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .vC .group{border-radius:13px;background:rgba(255,255,255,.055);overflow:hidden}
+    .vC .group .row{gap:0}
+    .vC .group .row+.row .row-main{border-top:1px solid rgba(255,255,255,.07)}
+    .vC .group .row .row-main{border-radius:0;padding:13px 13px 13px 6px}
+    .vC .group .row[data-selected] .row-main{box-shadow:inset 0 0 0 0 transparent;background:transparent}
+    .vC .group .row[data-selected] .row-main h4{color:#fff}
+    .vC .group .row[data-selected]::before{content:"";position:absolute}
+    .vC .group .row .row-grip{width:28px}
+    .vC .chev{color:rgba(255,255,255,.3);font-size:15px;font-weight:700}
+    .vC .group-nested{margin:0 0 0 34px;border-top:1px solid rgba(255,255,255,.07)}
+    .vC .group-nested .row .row-main{padding:11px 13px 11px 4px;border-top:1px solid rgba(255,255,255,.055)}
+    .vC .group-nested .row:first-child .row-main{border-top:0}
+    .vC .sel-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none;box-shadow:0 0 10px rgba(194,219,134,.6)}
+    .vC .group-add{display:flex;align-items:center;gap:8px;width:100%;padding:13px 13px 13px 36px;border:0;border-top:1px solid rgba(255,255,255,.07);background:transparent;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer}
+    .vC .group-add:hover{background:rgba(255,255,255,.05)}
+    .vC .detail{padding:24px 26px 30px;border-radius:26px;background:rgba(10,12,13,.6);box-shadow:inset 0 0 0 1px var(--line-soft)}
+    .vC .detail-head h2{margin-top:8px;font-size:30px;font-weight:780;letter-spacing:-.035em}
+    .vC .detail-head .sub{margin-top:8px;color:var(--faint);font-size:12px}
+    .vC .big-cta{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:22px;padding:17px 20px;border-radius:18px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px var(--line-soft)}
+    .vC .big-cta p{color:var(--muted);font-size:12px}
+    .vC .big-cta p strong{display:block;margin-bottom:5px;color:var(--text);font-size:13px;font-weight:750}
+    .vC .ex-list{margin-top:20px}
+    .vC .exercise{padding:16px 18px;margin-bottom:9px;border-radius:18px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px var(--line-soft);border-bottom:0}
+    .vC .quick-add{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:12px;padding:15px;border:1px dashed rgba(255,255,255,.18);border-radius:18px;background:transparent;color:var(--muted);font-size:12.5px;font-weight:700;cursor:pointer}
+    .vC .quick-add:hover{border-color:rgba(194,219,134,.4);color:#fff}
+
+    /* ── 变体 D：wide（计划索引收进一条横向轨道，内容占满宽度） ── */
+    .vD .vD-head{display:flex;align-items:flex-end;justify-content:space-between;gap:28px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+    .vD .vD-head h2{font-size:clamp(32px,4vw,54px);line-height:1;letter-spacing:-.045em}
+    .vD .vD-head .sub{margin-top:11px;color:var(--muted);font-size:12.5px}
+    .vD .rail{display:flex;gap:10px;margin:22px 0 0;padding-bottom:6px;overflow-x:auto;scrollbar-width:none}
+    .vD .rail::-webkit-scrollbar{display:none}
+    .vD .rail-card{flex:none;display:grid;gap:6px;min-width:186px;padding:16px 17px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.035);color:inherit;text-align:left;cursor:pointer;transition:background-color 150ms ease-out,border-color 150ms ease-out,transform 120ms var(--ease)}
+    .vD .rail-card:hover{background:rgba(255,255,255,.07);transform:translateY(-2px)}
+    .vD .rail-card[data-selected]{border-color:rgba(194,219,134,.44);background:rgba(194,219,134,.1)}
+    .vD .rail-card h3{font-size:14px;font-weight:770}
+    .vD .rail-card .meta{color:var(--faint);font-size:10.5px}
+    .vD .rail-card.add{align-content:center;justify-items:start;border-style:dashed;color:var(--faint)}
+    .vD .daybar{display:flex;align-items:center;gap:8px;margin:24px 0 0;flex-wrap:wrap}
+    .vD .btns-sorted{display:flex;align-items:center;gap:2px}
+    .vD .day-card{padding:18px 20px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.03);margin-top:12px}
+    .vD .day-card[data-selected]{border-color:rgba(194,219,134,.34);background:rgba(194,219,134,.05)}
+    .vD .day-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px}
+    .vD .day-card-head .left{display:flex;align-items:center;gap:13px;min-width:0}
+    .vD .day-card-head h3{font-size:17px;font-weight:770;letter-spacing:-.02em}
+    .vD .day-card-head .sub{margin-top:5px;color:var(--faint);font-size:11px}
+    .vD .day-card-body{margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)}
+    .vD .ex-list-d{display:grid;gap:8px;margin-top:14px}
+    .vD .exercise{padding:14px 16px;border:1px solid var(--line-soft);border-radius:13px;background:rgba(0,0,0,.22)}
+    .vD .ex-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .vD .ex-head .left{display:flex;align-items:baseline;gap:11px;min-width:0}
+    .vD .idx{flex:none;width:20px;color:var(--faint);font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+    .vD .ex-head h4{font-size:14.5px;font-weight:760}
+    .vD .plan-meta-rows{display:flex;gap:24px;margin-top:18px;flex-wrap:wrap}
+    .vD .plan-meta-rows div{display:flex;align-items:center;gap:8px;color:var(--faint);font-size:11.5px}
+    .vD .plan-meta-rows b{color:var(--muted);font-weight:750}
+
+    /* ── 确认浮层 ── */
+    .layer{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:22px;background:rgba(4,6,7,.66);-webkit-backdrop-filter:blur(16px) saturate(.85);backdrop-filter:blur(16px) saturate(.85);animation:layer-in 200ms var(--ease) both}
+    @keyframes layer-in{from{opacity:0}to{opacity:1}}
+    .dialog{width:min(430px,100%);padding:26px;border-radius:22px;background:#0f1213;box-shadow:inset 0 0 0 1px var(--line),0 34px 100px rgba(0,0,0,.6);animation:panel-in 240ms var(--ease) both}
+    @keyframes panel-in{from{opacity:0;transform:scale(.965) translateY(10px)}to{opacity:1;transform:none}}
+    .dialog h2{margin-top:10px;font-size:20px;font-weight:770;letter-spacing:-.025em}
+    .dialog p{margin-top:12px;color:var(--muted);font-size:12.5px;line-height:1.65}
+    .dialog .impact{margin-top:16px;padding:12px 14px;border-radius:11px;background:rgba(233,160,149,.08);box-shadow:inset 0 0 0 1px rgba(233,160,149,.18);color:#f1c3bc;font-size:12px;line-height:1.6}
+    .dialog .dialog-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}
+    .dialog.wide{width:min(560px,100%)}
+
+    /* ── 手机视口：索引退化成抽屉，内容优先 ── */
+    .drawer-backdrop{position:fixed;inset:0;z-index:40;background:rgba(4,6,7,.6);animation:layer-in 160ms var(--ease) both}
+    .drawer{position:fixed;z-index:41;top:0;bottom:0;left:0;width:min(318px,86vw);overflow:auto;padding:22px 16px 40px;background:#0b0e0f;box-shadow:inset -1px 0 0 var(--line),24px 0 60px rgba(0,0,0,.5);animation:drawer-in 240ms var(--ease) both}
+    @keyframes drawer-in{from{transform:translateX(-100%)}to{transform:none}}
+    .drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px 16px;border-bottom:1px solid var(--line-soft);margin-bottom:6px}
+    .drawer-head h2{font-size:13px;font-weight:800}
+    .mobile-bar{display:none}
+
+    /* ── 变体选择器（不属于设计本身） ── */
+    .proto-picker{position:fixed;z-index:2147483647;bottom:22px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;background:rgba(10,10,10,.86);-webkit-backdrop-filter:blur(12px) saturate(1.4);backdrop-filter:blur(12px) saturate(1.4);box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),0 8px 24px rgba(0,0,0,.3);font-size:13px;line-height:1;user-select:none}
+    .proto-picker-item{height:30px;padding:0 13px;border:0;border-radius:999px;background:transparent;color:rgba(255,255,255,.52);font:inherit;font-weight:600;cursor:pointer;transition:color 150ms ease-out,background-color 150ms ease-out}
+    .proto-picker-item:hover{color:#fff}
+    .proto-picker-item:active{transform:scale(.97)}
+    .proto-picker-item[data-active]{color:#fff;background:rgba(255,255,255,.13);font-weight:750}
+    .proto-picker-sep{width:1px;height:16px;margin:0 5px;background:rgba(255,255,255,.14)}
+    .proto-picker-height{width:1px;height:30px;margin:0 6px;visibility:hidden}
+    .proto-picker-sign{min-height:30px;padding:0 10px;border:0;border-radius:999px;background:rgba(194,219,134,.16);color:#d8eca8;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+    .proto-picker-sign:hover{background:rgba(194,219,134,.26)}
+    .proto-note{position:fixed;z-index:2147483647;bottom:64px;left:50%;transform:translateX(-50%);max-width:min(720px,calc(100vw - 28px));padding:8px 14px;border-radius:999px;background:rgba(10,10,10,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),0 8px 22px rgba(0,0,0,.4);color:rgba(255,255,255,.66);font-size:11px;line-height:1.45;text-align:center}
+
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+    @media(prefers-reduced-transparency:reduce){.vA .card,.vC .detail,.layer,.drawer{background:#111414!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}
+    @media(prefers-contrast:more){:root{--muted:rgba(255,255,255,.82);--faint:rgba(255,255,255,.66);--line:rgba(255,255,255,.34)}}
+    @media(hover:hover) and (pointer:fine){.row .row-main:hover{transform:none}}
+
+    @media(max-width:900px){
+      .shell{padding-inline:20px;padding-bottom:150px}
+      .page-head{margin-top:14px}
+      .page-head .hint{display:none}
+      /* 手机上导航本来就在底部，别和品牌挤在一起 */
+      .nav{top:auto;bottom:108px;width:auto;max-width:calc(100vw - 28px);overflow-x:auto}
+      .topbar{min-height:64px;padding:16px 0}
+      .vA .vA-grid,.vB .vB-grid,.vC .vC-grid{grid-template-columns:1fr;gap:0}
+      .vB .vB-aside,.vC .phone,.vA .vA-aside{display:none}
+      .vB .vB-detail{padding:18px 0 40px;border:0}
+      .mobile-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+      .mobile-bar .btn{max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block;line-height:36px;text-align:left}
+      .vD .rail-card{min-width:158px}
+      .vA .detail,.vC .detail{padding:20px 18px}
+      /* 选择器与说明在窄屏收成一行，别遮住设计本身 */
+      .proto-note{display:none}
+      .proto-picker{bottom:14px;max-width:calc(100vw - 20px);gap:0}
+      .proto-picker-item{padding:0 9px}
+      .proto-picker-sign{padding:0 9px;font-size:11px;white-space:nowrap}
+      .proto-picker-sep,.proto-picker-height{display:none}
+    }
+  </style>
+</head>
+<body>
+  <main id="stage"></main>
+  <div class="proto-note" id="proto-note"></div>
+  <nav class="proto-picker" aria-label="原型变体切换">
+    <button class="proto-picker-item" type="button" data-step="-1" aria-label="上一个变体">‹</button>
+    <span class="proto-picker-height"></span>
+    <span class="proto-picker-sep"></span>
+    <button class="proto-picker-sign" type="button" data-sign>把 A 定下来</button>
+  </nav>
+
+  <script>
+    /* ───────── mock 数据（只用于原型，不进生产） ───────── */
+    const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const exercises = [
+      { id: 'e1', name: '杠铃卧推', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e2', name: '上斜哑铃推', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e3', name: '坐姿肩推', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e4', name: '绳索侧平举', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e5', name: '平板支撑', resistanceType: 'BODYWEIGHT', targetType: 'DURATION' },
+      { id: 'e6', name: '硬拉', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e7', name: '引体向上', resistanceType: 'BODYWEIGHT', targetType: 'REPETITIONS' },
+      { id: 'e8', name: '坐姿划船', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e9', name: '杠铃深蹲', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e10', name: '腿举', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e11', name: '腿弯举', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' },
+      { id: 'e12', name: '站姿提踵', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' }
+    ];
+    const byId = (id) => exercises.find((item) => item.id === id);
+
+    let seq = 100;
+    function planned(exerciseId, setCount, targetValue, weightKg, recent, suggestion) {
+      seq += 1;
+      return { id: 'p' + seq, exerciseId, setCount, targetValue, weightKg: weightKg ?? null, recent: recent ?? [], suggestion: suggestion ?? null };
+    }
+    const plans = [
+      {
+        id: 'plan1', name: '力量基础', version: 4, archivedAt: null,
+        days: [
+          {
+            id: 'd1', name: '推日', weekday: 1, version: 2,
+            planned: [
+              planned('e1', 4, 8, 60, [100, 100, 88, 100, 100], '连续 3 次达标，可考虑加重 2.5kg'),
+              planned('e2', 3, 10, 22, [100, 88, 100], null),
+              planned('e3', 3, 10, 18, [88, 100], null),
+              planned('e4', 3, 15, 7.5, [], null)
+            ]
+          },
+          {
+            id: 'd2', name: '拉日', weekday: 3, version: 1,
+            planned: [
+              planned('e6', 4, 6, 100, [100, 100, 100, 100, 100], '连续 5 次达标，建议加重 5kg'),
+              planned('e7', 3, 8, null, [88, 100, 100], null),
+              planned('e8', 3, 12, 55, [100, 92], null)
+            ]
+          },
+          {
+            id: 'd3', name: '腿日', weekday: 5, version: 1,
+            planned: [
+              planned('e9', 5, 5, 110, [100, 100, 80, 100], '第 3 组连续 2 次掉速，注意组间休息'),
+              planned('e10', 4, 12, 140, [100, 100, 100], null),
+              planned('e11', 3, 15, 35, [100, 100], null),
+              planned('e12', 4, 20, 40, [], null)
+            ]
+          }
+        ]
+      },
+      {
+        id: 'plan2', name: '恢复与灵活', version: 1, archivedAt: null,
+        days: [
+          { id: 'd4', name: '活动恢复', weekday: null, version: 1, planned: [planned('e5', 3, 45, null, [100, 100], null)] },
+          { id: 'd5', name: '轻量上肢', weekday: 6, version: 1, planned: [] }
+        ]
+      },
+      { id: 'plan3', name: '夏季减脂', version: 7, archivedAt: '2026-07-02T10:00:00.000Z', days: [{ id: 'd6', name: '全身循环', weekday: null, version: 3, planned: [planned('e9', 3, 15, 60, [100, 100], null)] }] }
+    ];
+
+    /* ───────── 界面状态（原型内存态，句句对应决策） ───────── */
+    const SIGN_LABELS = { A: 'glass', B: 'flat', C: 'console', D: 'wide' };
+    const VARIANTS = ['A', 'B', 'C', 'D'];
+    const ui = {
+      planId: 'plan1',
+      /* 手风琴：一次只展开一个计划 */
+      expandedPlans: ['plan1'],
+      /* 记住每个计划上次选中的训练日 */
+      dayByPlan: { plan1: 'd1', plan2: 'd4', plan3: 'd6' },
+      editingPlanName: false,
+      editingDayName: false,
+      addingDay: false,
+      addingExercise: false,
+      editingPlannedId: null,
+      openRecapId: null,
+      search: '',
+      archivedOpen: false,
+      drawerOpen: false,
+      dialog: null,
+      sortMode: false,
+      toast: ''
+    };
+
+    const plan = () => plans.find((item) => item.id === ui.planId) ?? plans[0];
+    const day = () => { const p = plan(); return p.days.find((item) => item.id === ui.dayByPlan[p.id]) ?? p.days[0] ?? null; };
+    function selectPlan(id) {
+      ui.planId = id;
+      ui.expandedPlans = [id];
+      ui.addingDay = false; ui.addingExercise = false; ui.editingDayName = false;
+      ui.editingPlanName = false; ui.editingPlannedId = null; ui.search = ''; ui.drawerOpen = false;
+    }
+    function selectDay(id) {
+      const p = plan();
+      ui.dayByPlan[p.id] = id;
+      ui.addingExercise = false; ui.addingDay = false; ui.editingDayName = false; ui.editingPlannedId = null; ui.search = '';
+      ui.drawerOpen = false;
+    }
+    function togglePlan(id) {
+      ui.expandedPlans = ui.expandedPlans.includes(id) ? ui.expandedPlans.filter((item) => item !== id) : [...ui.expandedPlans, id];
+    }
+
+    const esc = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+    const activePlans = () => plans.filter((item) => item.archivedAt === null);
+    const archivedPlans = () => plans.filter((item) => item.archivedAt !== null);
+    function targetText(item) {
+      const unit = byId(item.exerciseId).targetType === 'REPETITIONS' ? '次' : '秒';
+      return item.setCount + ' 组 × ' + item.targetValue + ' ' + unit + (item.weightKg === null ? '' : ' × ' + item.weightKg.toFixed(1) + ' kg');
+    }
+    function weekdayText(value) { return value === null ? '不限日期' : WEEKDAYS[value]; }
+    function recentDot(item) {
+      if (!item.recent.length) return '<span style="color:var(--faint)">还没有完成记录</span>';
+      const latest = item.recent[item.recent.length - 1];
+      const cls = latest >= 100 ? 'on' : latest >= 80 ? 'hi' : 'lo';
+      return '最近 ' + latest + '%<span class="meter" style="margin-left:8px">' + item.recent.map((rate) => '<i class="' + rate + (rate >= 100 ? ' on' : rate >= 80 ? ' hi' : ' lo') + '" style="height:' + Math.max(5, Math.round(rate / 100 * 14)) + 'px"></i>').join('') + '</span>';
+    }
+    /* 排序：上下箭头按钮，不用拖拽 */
+    function moveInArray(list, from, to) {
+      if (to < 0 || to >= list.length) return false;
+      const next = [...list];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      list.splice(0, list.length, ...next);
+      return true;
+    }
+    function moveDay(index, delta) {
+      if (moveInArray(plan().days, index, index + delta)) flash('训练日顺序已更新。');
+    }
+    function movePlanned(index, delta) {
+      if (moveInArray(day().planned, index, index + delta)) flash('动作顺序已更新。');
+    }
+    function flash(message) {
+      ui.toast = message;
+      render();
+      clearTimeout(flash.timer);
+      flash.timer = setTimeout(() => { ui.toast = ''; render(); }, 1900);
+    }
+    function progressOf(item) {
+      if (!item.recent.length) return '还没有完成记录';
+      const average = Math.round(item.recent.reduce((total, rate) => total + rate, 0) / item.recent.length);
+      return '近 ' + item.recent.length + ' 次平均 ' + average + '%';
+    }
+
+    /* ───────── 可复用片段 ───────── */
+    function confirmDialog() {
+      const d = ui.dialog;
+      if (!d) return '';
+      return '<section class="layer" role="presentation" data-close-layer><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">'
+        + '<p class="kicker">' + (d.danger ? '不可撤销的操作' : '请确认') + '</p>'
+        + '<h2 id="dialog-title">' + esc(d.title) + '</h2>'
+        + '<p>' + esc(d.body) + '</p>'
+        + (d.impact ? '<div class="impact">' + esc(d.impact) + '</div>' : '')
+        + '<div class="dialog-actions"><button class="btn quiet" type="button" data-cancel-dialog>取消</button>'
+        + '<button class="btn ' + (d.danger ? 'danger' : 'primary') + '" type="button" data-confirm-dialog>' + esc(d.confirm) + '</button></div>'
+        + '</div></section>';
+    }
+    function addDayForm() {
+      return '<div class="editor"><h4>新建训练日</h4><form data-add-day>'
+        + '<div class="field-row"><label class="field" style="flex:1 1 190px"><span>训练日名称</span><input name="name" placeholder="例如：推日" required maxlength="80"></label>'
+        + '<label class="field" style="flex:0 1 150px"><span>建议星期</span><select name="weekday"><option value="">不指定</option>'
+        + WEEKDAYS.map((label, index) => '<option value="' + index + '">' + label + '</option>').join('') + '</select></label></div>'
+        + '<div class="editor-foot"><button class="btn primary" type="submit">创建训练日</button><button class="btn quiet" type="button" data-cancel-add-day>取消</button></div>'
+        + '</form></div>';
+    }
+    function addExerciseComposer() {
+      const search = ui.search.trim();
+      const matches = exercises.filter((item) => !search || item.name.includes(search));
+      return '<div class="editor"><h4>加动作到「' + esc(day().name) + '」</h4>'
+        + '<div class="search"><label class="field" style="flex:1"><span>搜索动作库</span><input name="search" data-search value="' + esc(ui.search) + '" placeholder="输入名称筛选，例如：卧推"></label></div>'
+        + '<div class="search-results">' + (matches.length === 0 ? '<button type="button" disabled style="cursor:default">没有匹配的动作，先去「动作」页创建</button>' : matches.map((item) => '<button type="button" data-pick-exercise="' + item.id + '"><span>' + esc(item.name) + '</span><small>' + (item.resistanceType === 'WEIGHTED' ? '负重' : '自重') + ' · ' + (item.targetType === 'REPETITIONS' ? '次数' : '时长') + '</small></button>').join('')) + '</div>'
+        + '<form data-add-planned style="margin-top:14px"><input type="hidden" name="exerciseId" value="' + esc(pickedExerciseId()) + '">'
+        + '<div class="composer-grid">'
+        + '<label class="field"><span>组数</span><input name="setCount" type="number" min="1" value="3" required></label>'
+        + '<label class="field"><span>目标（次 / 秒）</span><input name="targetValue" type="number" min="1" value="10" required></label>'
+        + '<label class="field"><span>重量 kg</span><input name="weight" type="number" min="0" step="0.5" placeholder="自重留空"></label>'
+        + '</div><div class="editor-foot"><button class="btn primary" type="submit"' + (pickedExerciseId() ? '' : ' disabled') + '>加进这个训练日</button>'
+        + '<button class="btn quiet" type="button" data-cancel-add-exercise>取消</button></div></form></div>';
+    }
+    let pickedExercise = '';
+    function pickedExerciseId() { return pickedExercise; }
+    function exerciseRow(item, index, total, options) {
+      const options_ = options ?? {};
+      const openRecap = ui.openRecapId === item.id;
+      const editing = ui.editingPlannedId === item.id;
+      return '<article class="exercise" data-planned="' + item.id + '">'
+        + '<div class="ex-top"><div style="min-width:0"><h4>' + esc(byId(item.exerciseId).name) + '</h4>'
+        + '<p class="nums"><b>' + item.setCount + '</b><span>组</span><span>·</span><b>' + item.targetValue + '</b> ' + (byId(item.exerciseId).targetType === 'REPETITIONS' ? '次' : '秒') + (item.weightKg === null ? '' : '<span>·</span><b>' + item.weightKg.toFixed(1) + '</b> kg') + '</p></div>'
+        + '<div class="ex-actions">'
+        + (ui.sortMode === false ? '' : '<button class="btn icon" type="button" data-move-planned="' + index + '" data-delta="-1" aria-label="上移 ' + esc(byId(item.exerciseId).name) + '"' + (index === 0 ? ' disabled' : '') + '>↑</button>'
+          + '<button class="btn icon" type="button" data-move-planned="' + index + '" data-delta="1" aria-label="下移 ' + esc(byId(item.exerciseId).name) + '"' + (index === total - 1 ? ' disabled' : '') + '>↓</button>')
+        + '<details class="inline-edit"' + (editing ? ' open' : '') + ' data-edit-details><summary aria-label="编辑 ' + esc(byId(item.exerciseId).name) + ' 的目标">✎</summary>'
+        + '<div class="pop"><p class="pop-title">编辑目标</p><form data-edit-planned="' + item.id + '">'
+        + '<div class="field"><span>组数</span><input name="setCount" type="number" min="1" value="' + item.setCount + '" required></div>'
+        + '<div class="field"><span>次数 / 秒数</span><input name="targetValue" type="number" min="1" value="' + item.targetValue + '" required></div>'
+        + '<div class="field"><span>重量 kg（自重留空）</span><input name="weight" type="number" min="0" step="0.5" value="' + (item.weightKg === null ? '' : item.weightKg) + '"></div>'
+        + '<div class="pop-actions"><button class="btn primary sm" type="submit">保存目标</button><button class="btn quiet sm" type="button" data-cancel-edit>取消</button></div>'
+        + '</form></div></details>'
+        + '<button class="btn quiet sm" type="button" data-remove-planned="' + item.id + '">移除</button>'
+        + '</div></div>'
+        + '<details class="recap"' + (openRecap ? ' open' : '') + ' data-recap="' + item.id + '"><summary>' + progressOf(item) + '</summary>'
+        + '<div class="recap-body"><ul>' + (item.recent.length === 0
+            ? '<li><span>这个动作还没有完成的训练记录。</span></li>'
+            : item.recent.map((rate, i) => '<li><span>' + recentDate(i, item.recent.length) + '</span><span>达成 ' + rate + '%' + (rate >= 100 ? ' · 达标' : '') + '</span></li>').slice().reverse().join(''))
+        + '</ul>' + (item.suggestion ? '<p class="tip">进阶建议：' + esc(item.suggestion) + '</p>' : '') + '</div></details>'
+        + '</article>';
+    }
+    function recentDate(index, total) {
+      const base = new Date(2026, 8, 16);
+      const offset = (total - 1 - index) * 2;
+      const date = new Date(base.getTime() - offset * 86400000);
+      return (date.getMonth() + 1).toString().padStart(2, '0') + '-' + date.getDate().toString().padStart(2, '0');
+    }
+    function dayList() {
+      const current = day();
+      if (!current) return '<p class="empty"><strong>这个计划还没有训练日</strong>训练日用来把动作分组，例如「推日」「拉日」。</p>';
+      if (current.planned.length === 0) {
+        return '<div class="ex-list">' + '<p class="empty left" style="margin-top:20px"><strong>「' + esc(current.name) + '」还没有动作</strong>先从动作库挑几个动作，再定组数、目标和重量。安排完成后就能开始训练。</p></div>';
+      }
+      return '<div class="ex-list">' + current.planned.map((item, index) => exerciseRow(item, index, current.planned.length, {})).join('') + '</div>';
+    }
+    function startBlock() {
+      const current = day();
+      if (!current) return '';
+      if (plan().archivedAt !== null) return '<p class="locked">计划已归档，恢复后才能开始训练。</p>';
+      if (current.planned.length === 0) return '<p class="locked">先给这个训练日添加动作，然后就能开始训练。</p>';
+      return '<button class="btn primary" type="button" data-toast="原型不会真的开始训练">开始「' + esc(current.name) + '」</button>';
+    }
+    function reminderText() {
+      const current = day();
+      if (!current) return '';
+      if (current.planned.length === 0) return '还没有动作 · 先安排动作再训练';
+      return '共 ' + current.planned.length + ' 个动作 · 预计 ' + (current.planned.length * 11 + 6) + ' 分钟';
+    }
+    function weekdayOptions(selected) {
+      return '<option value="">不指定</option>' + WEEKDAYS.map((label, index) => '<option value="' + index + '"' + (selected === index ? ' selected' : '') + '>' + label + '</option>').join('');
+    }
+    /* 计划名 / 训练日名 行内直改 */
+    function titleControl(entity, kind, className) {
+      const editing = kind === 'plan' ? ui.editingPlanName : ui.editingDayName;
+      const label = kind === 'plan' ? '计划名称' : '训练日名称';
+      if (!editing) return '<button class="title-edit ' + className + '" type="button" data-edit-title="' + kind + '" aria-label="修改' + label + '">' + esc(entity.name) + '</button>';
+      return '<form data-rename="' + kind + '" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        + '<input class="title-input ' + className + '" name="name" value="' + esc(entity.name) + '" required maxlength="80" aria-label="' + label + '" autofocus>'
+        + '<button class="btn primary sm" type="submit">保存</button><button class="btn quiet sm" type="button" data-cancel-title>取消</button></form>';
+    }
+    function dayOverflow() {
+      const current = day();
+      return '<details class="inline-edit"><summary aria-label="训练日设置">⋯</summary><div class="pop">'
+        + '<p class="pop-title">训练日设置</p>'
+        + '<div class="field"><span>建议星期</span><select data-day-weekday>' + weekdayOptions(current.weekday) + '</select></div>'
+        + '<div class="pop-actions"><button class="btn danger sm" type="button" data-remove-day>删除这个训练日</button></div>'
+        + '</div></details>';
+    }
+    function reorderButton(index, delta, count, label) {
+      return '<button class="btn icon" type="button" data-move-' + label + '="' + index + '" data-delta="' + delta + '" aria-label="' + (delta < 0 ? '上移' : '下移') + '第 ' + (index + 1) + ' 项"' + (delta < 0 ? (index === 0 ? ' disabled' : '') : (index === count - 1 ? ' disabled' : '')) + '>'
+        + (delta < 0 ? '↑' : '↓') + '</button>';
+    }
+    function planIndexRows() {
+      return '<ul class="plans">' + activePlans().map((item, index) => {
+        const expanded = ui.expandedPlans.includes(item.id);
+        const selected = item.id === ui.planId;
+        return '<li class="plan-row row"' + (selected ? ' data-selected' : '') + '>'
+          + '<div class="rail-head-mark">' + (ui.sortMode ? reorderButton(index, -1, activePlans().length, 'plan') + reorderButton(index, 1, activePlans().length, 'plan') : '') + '</div>'
+          + '<div><button class="row-main" type="button" data-select-plan="' + item.id + '" aria-current="' + (selected ? 'true' : 'false') + '" aria-expanded="' + (expanded ? 'true' : 'false') + '">'
+          + '<span style="min-width:0"><h4>' + esc(item.name) + '</h4><span class="meta">' + item.days.length + ' 个训练日 · ' + item.days.reduce((total, d) => total + d.planned.length, 0) + ' 个动作</span></span>'
+          + '<span class="trail"><span class="chev" style="color:var(--faint);font-size:13px">' + (expanded ? '⌄' : '›') + '</span></span></button>'
+          + (expanded ? '<ul class="daylist">' + item.days.map((d, dayIndex) => '<li class="day-row row"' + (d.id === ui.dayByPlan[item.id] && selected ? ' data-selected' : '') + '>'
+              + '<div>' + (ui.sortMode ? reorderButton(dayIndex, -1, item.days.length, 'day') + reorderButton(dayIndex, 1, item.days.length, 'day') : '') + '</div>'
+              + '<button class="row-main" type="button" data-select-plan="' + item.id + '" data-select-day="' + d.id + '">'
+              + '<span style="min-width:0"><h4>' + esc(d.name) + '</h4><span class="meta">' + weekdayText(d.weekday) + ' · ' + (d.planned.length ? d.planned.length + ' 个动作' : '还没有动作') + '</span></span>'
+              + '</button></li>').join('')
+              + '<li><button class="add-inline" type="button" data-add-day><i>＋</i>新建训练日</button></li>'
+              + '</ul>' : '') + '</div></li>';
+      }).join('') + '</ul>';
+    }
+    function archivedTray() {
+      if (archivedPlans().length === 0) return '';
+      return '<div class="archived-tray"><button class="btn quiet sm" type="button" data-toggle-archived>已归档（' + archivedPlans().length + '）' + (ui.archivedOpen ? ' ⌃' : ' ⌄') + '</button>'
+        + (ui.archivedOpen ? '<ul class="plans" style="margin-top:8px">' + archivedPlans().map((item) => '<li class="row"' + (item.id === ui.planId ? ' data-selected' : '') + '><div></div>'
+          + '<button class="row-main" type="button" data-select-plan="' + item.id + '"><span style="min-width:0"><h4 style="color:var(--muted)">' + esc(item.name) + '</h4><span class="meta">已归档 · ' + item.days.length + ' 个训练日</span></span>'
+          + '<span class="trail"><span class="tag">已归档</span></span></button></li>').join('') + '</ul>' : '') + '</div>';
+    }
+    function dayChips() {
+      const current = day();
+      return plan().days.map((d) => '<button class="chip" type="button" data-select-day="' + d.id + '"' + (current && d.id === current.id ? ' data-selected' : '') + '>'
+        + esc(d.name) + '<span style="color:var(--faint)">' + weekdayText(d.weekday) + '</span></button>').join('')
+        + '<button class="chip add" type="button" data-add-day' + (ui.addingDay ? ' data-selected' : '') + '>＋ 训练日</button>';
+    }
+    function dayTabs() {
+      const current = day();
+      return plan().days.map((d, index) => '<button class="daytab" type="button" data-select-day="' + d.id + '"' + (current && d.id === current.id ? ' data-selected' : '') + '>'
+        + esc(d.name) + '<em>' + (d.planned.length ? d.planned.length : '空') + '</em></button>').join('')
+        + '<button class="daytab add" type="button" data-add-day>＋ 训练日</button>';
+    }
+    function consoleGroups() {
+      const current = day();
+      return '<p class="grouplabel">我的计划</p>'
+        + activePlans().map((item, index) => {
+          const selected = item.id === ui.planId;
+          const expanded = ui.expandedPlans.includes(item.id);
+          return '<div class="group" style="margin-bottom:10px">'
+            + '<div class="row"' + (selected ? ' data-selected' : '') + '><div>' + (ui.sortMode ? reorderButton(index, -1, activePlans().length, 'plan') + reorderButton(index, 1, activePlans().length, 'plan') : '') + '</div>'
+            + '<button class="row-main" type="button" data-select-plan="' + item.id + '"><span style="min-width:0"><h4>' + esc(item.name) + '</h4><span class="meta">' + item.days.length + ' 个训练日</span></span>'
+            + '<span class="trail">' + (selected ? '<i class="sel-dot"></i>' : '') + '<span class="chev">' + (expanded ? '⌄' : '›') + '</span></span></button></div>'
+            + (expanded ? '<div class="group-nested">' + item.days.map((d, dayIndex) => '<div class="row"' + (d.id === ui.dayByPlan[item.id] && selected ? ' data-selected' : '') + '>'
+                + '<div>' + (ui.sortMode ? reorderButton(dayIndex, -1, item.days.length, 'day') + reorderButton(dayIndex, 1, item.days.length, 'day') : '') + '</div>'
+                + '<button class="row-main" type="button" data-select-plan="' + item.id + '" data-select-day="' + d.id + '"><span style="min-width:0"><h4>' + esc(d.name) + '</h4><span class="meta">' + weekdayText(d.weekday) + ' · ' + (d.planned.length ? d.planned.length + ' 个动作' : '还没有动作') + '</span></span></button></div>').join('')
+                + '<button class="group-add" type="button" data-add-day>＋ 新建训练日</button></div>' : '')
+            + '</div>';
+        }).join('')
+        + (archivedPlans().length ? '<p class="grouplabel">已归档</p><div class="group">' + archivedPlans().map((item) => '<div class="row"><div></div><button class="row-main" type="button" data-select-plan="' + item.id + '"><span style="min-width:0"><h4>' + esc(item.name) + '</h4><span class="meta">已归档 · ' + item.days.length + ' 个训练日</span></span></button></div>').join('') + '</div>' : '');
+    }
+    function railCards() {
+      return activePlans().map((item, index) => '<button class="rail-card" type="button" data-select-plan="' + item.id + '"' + (item.id === ui.planId ? ' data-selected' : '') + '>'
+        + '<h3>' + esc(item.name) + '</h3><span class="meta">' + item.days.length + ' 个训练日 · ' + item.days.reduce((total, d) => total + d.planned.length, 0) + ' 个动作</span>'
+        + (ui.sortMode ? '<span class="btns-sorted">' + reorderButton(index, -1, activePlans().length, 'plan') + reorderButton(index, 1, activePlans().length, 'plan') + '</span>' : '') + '</button>').join('')
+        + '<button class="rail-card add" type="button" data-new-plan>＋ 新建计划</button>';
+    }
+    function toolbar() {
+      return '<div class="segmented" role="group" aria-label="计划操作">'
+        + '<button type="button" data-new-plan aria-pressed="false">新建计划</button>'
+        + '<button type="button" data-toggle-sort aria-pressed="' + (ui.sortMode ? 'true' : 'false') + '">调整顺序</button>'
+        + '<button type="button" data-toggle-archive aria-pressed="' + (ui.archivedOpen ? 'true' : 'false') + '">归档计划</button>'
+        + '</div>';
+    }
+    const planDialog = () => confirmDialog();
+    const planToast = () => ui.toast ? '<p class="workspace-notice" style="position:fixed;z-index:70;top:78px;left:50%;transform:translateX(-50%);margin:0;padding:11px 16px;border-radius:999px;background:rgba(18,20,21,.94);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;color:#dfecc1" role="status">' + esc(ui.toast) + '</p>' : '';
+
+    /* ───────── 变体 A：glass ───────── */
+    function variantA() {
+      const current = day();
+      if (!current) return '';
+      return '<div class="shell vA"><header class="topbar">' + brand() + nav() + '</header>'
+        + '<div class="page-head"><div><p class="kicker">训练计划</p><h1>计划决定目标，训练只记录实际。</h1></div><p class="hint">训练开始时会锁定当前计划快照，之后修改计划不会改变历史。</p></div>'
+        + '<div class="vA-grid">'
+        + '<aside class="card panel" aria-label="计划与训练日">' + '<div class="panel-head"><h2>计划</h2>' + toolbar() + '</div>' + planIndexRows() + archivedTray() + '</aside>'
+        + '<section class="card detail">'
+        + '<div class="detail-head"><div><p class="kicker">当前计划</p>' + titleControl(plan(), 'plan', 'plan-title') + '<p class="sub">' + plan().days.length + ' 个训练日 · ' + plan().days.reduce((total, d) => total + d.planned.length, 0) + ' 个已安排动作</p></div>'
+        + '<div style="display:flex;gap:8px;align-items:center"><button class="btn quiet sm" type="button" data-toggle-archive>' + (plan().archivedAt ? '恢复计划' : '归档计划') + '</button></div></div>'
+        + '<div class="day-strip">' + dayChips() + '</div>'
+        + (ui.addingDay ? addDayForm() : '')
+        + '<details class="setup"' + (ui.editingDayName ? ' open' : '') + '><summary>训练日设置 · ' + esc(current.name) + '</summary><div class="setup-body">'
+        + '<div class="field-row"><label class="field" style="flex:1 1 190px"><span>训练日名称</span><input name="dayName" value="' + esc(current.name) + '" data-day-name required maxlength="80"></label>'
+        + '<label class="field" style="flex:0 1 150px"><span>建议星期</span><select data-day-weekday>' + weekdayOptions(current.weekday) + '</select></label>'
+        + '<button class="btn" type="button" data-save-day>保存设置</button>'
+        + '<button class="btn danger" type="button" data-remove-day>删除训练日</button></div></div></details>'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:22px"><div><h3 style="font-size:17px;font-weight:770">' + esc(current.name) + ' · 动作安排</h3><p style="margin-top:6px;color:var(--faint);font-size:11.5px">' + reminderText() + '</p></div>'
+        + '<button class="btn sm" type="button" data-add-exercise' + (ui.addingExercise ? ' disabled' : '') + '>＋ 添加动作</button></div>'
+        + (ui.addingExercise ? addExerciseComposer() : '')
+        + dayList()
+        + '<div class="day-cta">' + startBlock() + '</div>'
+        + '</section></div></div>' + planToast();
+    }
+
+    /* ───────── 变体 B：flat ───────── */
+    function variantB() {
+      const current = day();
+      if (!current) return '';
+      return '<div class="shell vB"><header class="topbar">' + brand() + nav() + '</header>'
+        + '<div class="page-head"><div><p class="kicker">训练计划</p><h1>计划决定目标，训练只记录实际。</h1></div><p class="hint">训练开始时会锁定当前计划快照，之后修改计划不会改变历史。</p></div>'
+        + '<div class="vB-grid">'
+        + '<aside class="vB-aside">'
+        + '<div class="rail-head"><h2>我的计划</h2><button class="btn icon" type="button" data-new-plan aria-label="新建计划">＋</button></div>'
+        + planIndexRows() + archivedTray()
+        + '<div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft)"><button class="btn quiet sm" type="button" data-toggle-sort aria-pressed="' + (ui.sortMode ? 'true' : 'false') + '">' + (ui.sortMode ? '完成排序' : '调整顺序') + '</button></div>'
+        + '</aside>'
+        + '<section class="vB-detail">'
+        + '<div class="mobile-bar"><button class="btn sm" type="button" data-open-drawer>‹ ' + esc(plan().name) + ' · ' + esc(current.name) + '</button><span class="tag">' + plan().days.length + ' 个训练日</span></div>'
+        + '<div class="detail-head"><div class="title-line"><div><p class="kicker">当前计划</p><h2>' + titleControl(plan(), 'plan', '') + '</h2><p class="sub">训练开始时会锁定快照，之后调整不会改写历史。</p></div>'
+        + '<div style="display:flex;gap:8px;flex:none"><button class="btn quiet sm" type="button" data-toggle-archive>' + (plan().archivedAt ? '恢复' : '归档') + '</button><button class="btn quiet sm" type="button" data-new-plan>新建计划</button></div></div></div>'
+        + '<dl class="meta-strip">'
+        + '<div><dt>训练日</dt><dd>' + plan().days.length + ' 个<small>' + plan().days.map((d) => d.name).join(' · ') + '</small></dd></div>'
+        + '<div><dt>已安排动作</dt><dd>' + plan().days.reduce((total, d) => total + d.planned.length, 0) + ' 个<small>最近一次 ' + lastCompleted() + '</small></dd></div>'
+        + '<div><dt>状态</dt><dd>' + (plan().archivedAt ? '已归档' : '启用中') + '<small>' + (ui.sortMode ? '正在调整顺序' : weekdayText(current.weekday)) + '</small></dd></div>'
+        + '</dl>'
+        + '<div class="strip-actions">' + startBlock() + '<button class="btn" type="button" data-add-exercise' + (ui.addingExercise ? ' disabled' : '') + '>＋ 添加动作</button><button class="btn quiet" type="button" data-add-day>＋ 添加训练日</button></div>'
+        + '<div class="daytabs">' + dayTabs() + '</div>'
+        + (ui.addingDay ? addDayForm() : '')
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:22px"><h3 style="font-size:15px;font-weight:770">' + esc(current.name) + '</h3><span class="tag">' + reminderText() + '</span></div>'
+        + (ui.addingExercise ? addExerciseComposer() : '')
+        + dayList()
+        + '<div class="locked-note" style="margin-top:24px;padding-top:18px;border-top:1px solid var(--line)"><span>训练日设置：</span>'
+        + '<select data-day-weekday style="height:32px;border:1px solid rgba(255,255,255,.13);border-radius:7px;background:rgba(0,0,0,.3);color:#fff;padding:0 9px;font-size:12px">' + weekdayOptions(current.weekday) + '</select>'
+        + '<button class="btn sm" type="button" data-save-day>保存</button>'
+        + '<button class="btn quiet sm" type="button" data-remove-day>删除训练日</button></div>'
+        + '</section></div></div>' + drawer() + planToast();
+    }
+    function lastCompleted() {
+      const all = plans.flatMap((p) => p.days.flatMap((d) => d.planned));
+      const withHistory = all.filter((item) => item.recent.length > 0);
+      return withHistory.length ? '09-16 完成' : '还没有记录';
+    }
+    function drawer() {
+      if (!ui.drawerOpen) return '';
+      return '<div class="drawer-backdrop" data-close-drawer></div><aside class="drawer" aria-label="计划与训练日导航">'
+        + '<div class="drawer-head"><h2>计划与训练日</h2><button class="btn icon" type="button" data-close-drawer aria-label="关闭">✕</button></div>'
+        + planIndexRows() + archivedTray()
+        + '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)"><button class="btn quiet sm" type="button" data-toggle-sort>调整顺序</button></div>'
+        + '</aside>';
+    }
+
+    /* ───────── 变体 C：console ───────── */
+    function variantC() {
+      const current = day();
+      if (!current) return '';
+      return '<div class="shell vC"><header class="topbar">' + brand() + nav() + '</header>'
+        + '<div class="page-head"><div><p class="kicker">训练计划</p><h1>计划决定目标，训练只记录实际。</h1></div><p class="hint">训练开始时会锁定当前计划快照，之后修改计划不会改变历史。</p></div>'
+        + '<div class="mobile-bar"><button class="btn sm" type="button" data-open-drawer>‹ ' + esc(plan().name) + ' · ' + esc(current.name) + '</button><span class="tag">' + plan().days.length + ' 个训练日</span></div>'
+        + '<div class="vC-grid">'
+        + '<div class="phone">' + '<div class="phone-head"><h2>训练计划</h2><p>点开计划查看训练日</p></div>'
+        + consoleGroups()
+        + '<button class="group-add" style="border:0;border-radius:13px;background:rgba(255,255,255,.055);justify-content:flex-start;padding-left:14px;margin-top:4px" type="button" data-new-plan>＋ 新建计划</button>'
+        + '</div>'
+        + '<section class="detail">'
+        + '<div class="detail-head"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px"><div><p class="kicker">' + esc(plan().name) + '</p><h2>' + esc(current.name) + '</h2><p class="sub">共 ' + current.planned.length + ' 个动作 · ' + weekdayText(current.weekday) + '</p></div>'
+        + '<div style="display:flex;gap:6px;flex:none"><button class="btn quiet sm" type="button" data-edit-title="plan">改计划名</button>' + dayOverflow() + '</div></div></div>'
+        + '<div class="big-cta"><p><strong>' + (current.planned.length ? '动作已经就绪' : '还没有安排动作') + '</strong>' + reminderText() + '</p><div style="display:flex;gap:8px">' + startBlock() + '</div></div>'
+        + (ui.addingExercise ? addExerciseComposer() : '<button class="quick-add" type="button" data-add-exercise>＋ 添加动作</button>')
+        + dayList()
+        + '</section></div></div>' + drawer() + planToast();
+    }
+
+    /* ───────── 变体 D：wide ───────── */
+    function variantD() {
+      const current = day();
+      if (!current) return '';
+      return '<div class="shell vD"><header class="topbar">' + brand() + nav() + '</header>'
+        + '<div class="vD-head"><div style="min-width:0"><p class="kicker">训练计划</p><h2>' + esc(plan().name) + '</h2><p class="sub">训练开始时会锁定快照，之后调整不会改写历史。</p></div>'
+        + '<div style="display:flex;gap:8px;flex:none">' + toolbar() + '</div></div>'
+        + '<div class="mobile-bar"><button class="btn sm" type="button" data-open-drawer>‹ ' + esc(plan().name) + ' · ' + esc(current.name) + '</button><span class="tag">' + plan().days.length + ' 个训练日</span></div>'
+        + '<div class="rail">' + railCards() + '</div>'
+        + '<div class="plan-meta-rows"><div><b>' + plan().days.length + '</b> 个训练日</div><div><b>' + plan().days.reduce((total, d) => total + d.planned.length, 0) + '</b> 个已安排动作</div><div><b>' + (plan().archivedAt ? '已归档' : '启用中') + '</b> 状态</div>'
+        + '<button class="btn quiet sm" type="button" data-edit-title="plan">修改计划名</button>'
+        + '<button class="btn quiet sm" type="button" data-toggle-archive>' + (plan().archivedAt ? '恢复计划' : '归档计划') + '</button></div>'
+        + '<div class="daybar"><span style="color:var(--faint);font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase">训练日</span>'
+        + plan().days.map((d) => '<button class="chip" type="button" data-select-day="' + d.id + '"' + (d.id === current.id ? ' data-selected' : '') + ' style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid transparent;border-radius:999px;background:rgba(255,255,255,.055);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer"' + (d.id === current.id ? ' data-selected' : '') + '>' + esc(d.name) + '<span style="color:var(--faint)">' + (d.planned.length || '空') + '</span></button>').join('')
+        + '<button class="btn sm" type="button" data-add-day>＋ 训练日</button></div>'
+        + (ui.addingDay ? addDayForm() : '')
+        + '<div class="day-card" data-selected>'
+        + '<div class="day-card-head"><div class="left"><div style="min-width:0"><h3>' + titleControl(current, 'day', 'day-title-edit') + '</h3><p class="sub">' + weekdayText(current.weekday) + ' · ' + reminderText() + '</p></div>'
+        + '<select data-day-weekday style="height:32px;border:1px solid rgba(255,255,255,.13);border-radius:7px;background:rgba(0,0,0,.3);color:#fff;padding:0 9px;font-size:12px">' + weekdayOptions(current.weekday) + '</select>'
+        + '<button class="btn sm" type="button" data-save-day>保存</button></div>'
+        + '<div style="display:flex;gap:8px;flex:none"><button class="btn sm" type="button" data-add-exercise' + (ui.addingExercise ? ' disabled' : '') + '>＋ 添加动作</button>'
+        + '<button class="btn quiet sm" type="button" data-remove-day>删除训练日</button><button class="btn quiet sm" type="button" data-add-day>＋ 训练日</button></div></div>'
+        + '<div class="day-card-body">'
+        + (ui.addingExercise ? addExerciseComposer() : '')
+        + dayListD(current)
+        + '<div style="display:flex;align-items:center;gap:14px;margin-top:18px">' + startBlock() + '</div>'
+        + '</div></div></div>' + drawer() + planToast();
+    }
+    function dayListD(current) {
+      if (current.planned.length === 0) return '<p class="empty left" style="margin-top:16px"><strong>「' + esc(current.name) + '」还没有动作</strong>先从动作库挑几个动作，再定组数、目标和重量。</p>';
+      return '<div class="ex-list-d">' + current.planned.map((item, index) => {
+        const openRecap = ui.openRecapId === item.id;
+        const editing = ui.editingPlannedId === item.id;
+        return '<article class="exercise" data-planned="' + item.id + '"><div class="ex-head"><div class="left"><span class="idx">' + (index + 1) + '</span><h4>' + esc(byId(item.exerciseId).name) + '</h4>'
+          + '<span style="color:var(--faint);font-size:11.5px">' + targetText(item) + '</span></div>'
+          + '<div class="ex-actions">' + reorderButton(index, -1, current.planned.length, 'planned') + reorderButton(index, 1, current.planned.length, 'planned')
+          + '<details class="inline-edit"' + (editing ? ' open' : '') + '><summary aria-label="编辑目标">✎</summary><div class="pop"><p class="pop-title">编辑目标</p><form data-edit-planned="' + item.id + '">'
+          + '<div class="field"><span>组数</span><input name="setCount" type="number" min="1" value="' + item.setCount + '" required></div>'
+          + '<div class="field"><span>次数 / 秒数</span><input name="targetValue" type="number" min="1" value="' + item.targetValue + '" required></div>'
+          + '<div class="field"><span>重量 kg（自重留空）</span><input name="weight" type="number" min="0" step="0.5" value="' + (item.weightKg === null ? '' : item.weightKg) + '"></div>'
+          + '<div class="pop-actions"><button class="btn primary sm" type="submit">保存目标</button><button class="btn quiet sm" type="button" data-cancel-edit>取消</button></div></form></div></details>'
+          + '<button class="btn quiet sm" type="button" data-remove-planned="' + item.id + '">移除</button></div></div>'
+          + '<details class="recap"' + (openRecap ? ' open' : '') + ' data-recap="' + item.id + '"><summary>' + recentDot(item) + '</summary><div class="recap-body"><ul>' + (item.recent.length === 0 ? '<li><span>这个动作还没有完成的训练记录。</span></li>' : item.recent.map((rate, i) => '<li><span>' + recentDate(i, item.recent.length) + '</span><span>达成 ' + rate + '%' + (rate >= 100 ? ' · 达标' : '') + '</span></li>').slice().reverse().join('')) + '</ul>'
+          + (item.suggestion ? '<p class="tip">进阶建议：' + esc(item.suggestion) + '</p>' : '') + '</div></details></article>';
+      }).join('') + '</div>';
+    }
+
+    function brand() { return '<div class="brand"><span class="brand-mark"></span>CwFitness</div>'; }
+    function nav() {
+      const items = [['today', '今日'], ['plans', '计划'], ['exercises', '动作'], ['history', '历史'], ['progress', '进展']];
+      return '<nav class="nav" aria-label="主要导航">' + items.map(([key, label]) => '<button type="button"' + (key === 'plans' ? ' aria-current="page"' : '') + ' data-toast="原型只实现「计划」页">' + label + '</button>').join('') + '</nav>';
+    }
+
+    const VARIANTS_MAP = { A: variantA, B: variantB, C: variantC, D: variantD };
+    let currentVariant = 'A';
+
+    function render() {
+      document.getElementById('stage').innerHTML = VARIANTS_MAP[currentVariant]() + planDialog();
+      paintPicker();
+      const note = document.getElementById('proto-note');
+      note.textContent = '变体 ' + currentVariant + ' · ' + SIGN_LABELS[currentVariant] + '　|　'
+        + '这些是原型，数据是假的：点左上计划展开训练日、点训练日切换、✎ 改目标、⋯ 改设置与删除。'
+        + (currentVariant === 'B' ? '　窄屏请用「‹」按钮打开索引抽屉。' : '');
+    }
+    function paintPicker() {
+      document.querySelectorAll('.proto-picker-item[data-step]').forEach((item) => { if (item.dataset.step === '0') item.remove(); });
+      document.querySelectorAll('.proto-picker-item[data-variant]').forEach((item) => item.remove());
+      const sign = document.querySelector('.proto-picker-sign');
+      VARIANTS.slice().reverse().forEach((key) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'proto-picker-item';
+        button.dataset.variant = key;
+        button.textContent = key;
+        button.title = '变体 ' + key + ' · ' + SIGN_LABELS[key];
+        if (key === currentVariant) button.dataset.active = 'true';
+        sign.before(button);
+      });
+      sign.textContent = '把 ' + currentVariant + ' 定下来';
+      sign.dataset.sign = currentVariant;
+    }
+    function step(delta) {
+      const index = VARIANTS.indexOf(currentVariant);
+      currentVariant = VARIANTS[(index + delta + VARIANTS.length) % VARIANTS.length];
+      pickedExercise = ''; ui.search = ''; ui.dialog = null;
+      render();
+    }
+
+    document.querySelector('[data-step="-1"]').addEventListener('click', () => step(-1));
+    document.querySelector('.proto-picker-sign').addEventListener('click', (event) => {
+      const key = event.currentTarget.dataset.sign;
+      flash('已记录：把变体 ' + key + '（' + SIGN_LABELS[key] + '）作为计划页的方向');
+      window.location.search = '?variant=' + key + '&picked=1';
+    });
+    document.querySelector('.proto-picker').addEventListener('click', (event) => {
+      const item = event.target.closest('[data-variant]');
+      if (!item) return;
+      currentVariant = item.dataset.variant;
+      location.search = '?variant=' + currentVariant;
+      render();
+    });
+
+    document.getElementById('stage').addEventListener('click', (event) => {
+      const target = event.target;
+
+      if (target.closest('[data-close-layer]') && !target.closest('.dialog')) { ui.dialog = null; return render(); }
+      if (target.closest('.dialog [data-cancel-dialog]')) { ui.dialog = null; return render(); }
+      if (target.closest('.dialog [data-confirm-dialog]')) {
+        const action = ui.dialog?.action;
+        ui.dialog = null;
+        if (action === 'remove-day') {
+          const p = plan();
+          p.days.splice(p.days.findIndex((d) => d.id === ui.dayByPlan[p.id]), 1);
+          delete ui.dayByPlan[p.id];
+          flash('训练日已删除。历史训练仍然保留。');
+        }
+        if (action === 'remove-planned') {
+          const d = day();
+          d.planned.splice(d.planned.findIndex((item) => item.id === ui.pendingRemove), 1);
+          ui.pendingRemove = null;
+          flash('动作已从训练日移除。');
+        }
+        if (action === 'archive-plan') {
+          plan().archivedAt = new Date().toISOString();
+          flash('计划已归档。可随时恢复。');
+        }
+        return render();
+      }
+      if (target.closest('[data-close-drawer]')) { ui.drawerOpen = false; return render(); }
+      if (target.closest('[data-open-drawer]')) { ui.drawerOpen = true; return render(); }
+
+      const planTarget = target.closest('[data-select-plan]');
+      if (planTarget) {
+        const dayId = planTarget.dataset.selectDay;
+        const planId = planTarget.dataset.selectPlan;
+        if (planId !== ui.planId) selectPlan(planId);
+        if (dayId) selectDay(dayId);
+        else togglePlan(planId);
+        return render();
+      }
+      const dayTarget = target.closest('[data-select-day]');
+      if (dayTarget) { selectDay(dayTarget.dataset.selectDay); return render(); }
+
+      if (target.closest('[data-new-plan]')) {
+        seq += 1;
+        const newPlan = { id: 'plan' + seq, name: '新计划 ' + (activePlans().length + 1), version: 1, archivedAt: null, days: [] };
+        plans.push(newPlan); selectPlan(newPlan.id);
+        return flash('已创建空白计划，接着添加训练日。');
+      }
+      if (target.closest('[data-toggle-sort]')) { ui.sortMode = !ui.sortMode; return render(); }
+      if (target.closest('[data-toggle-archive]')) { ui.archivedOpen = !ui.archivedOpen; return render(); }
+
+      if (target.closest('[data-move-plan]')) {
+        const button = target.closest('[data-move-plan]');
+        const index = Number(button.dataset.movePlan);
+        const delta = Number(button.dataset.delta);
+        const visible = activePlans();
+        if (moveInArray(plans, plans.indexOf(visible[index]), plans.indexOf(visible[index + delta]))) flash('计划顺序已更新。');
+        return render();
+      }
+      if (target.closest('[data-move-day]')) {
+        const button = target.closest('[data-move-day]');
+        const index = Number(button.dataset.moveDay);
+        const delta = Number(button.dataset.delta);
+        if (moveInArray(plan().days, index, index + delta)) flash('训练日顺序已更新。');
+        return render();
+      }
+      const movePlanned = target.closest('[data-move-planned]');
+      if (movePlanned) {
+        const index = Number(movePlanned.dataset.movePlanned);
+        const delta = Number(movePlanned.dataset.delta);
+        if (moveInArray(day().planned, index, index + delta)) flash('动作顺序已更新。');
+        return render();
+      }
+
+      if (target.closest('[data-edit-title]')) {
+        const kind = target.closest('[data-edit-title]').dataset.editTitle;
+        if (kind === 'plan') ui.editingPlanName = true; else ui.editingDayName = true;
+        return render();
+      }
+      if (target.closest('[data-cancel-title]')) { ui.editingPlanName = false; ui.editingDayName = false; return render(); }
+
+      if (target.closest('[data-add-day]')) { ui.addingDay = true; ui.addingExercise = false; return render(); }
+      if (target.closest('[data-cancel-add-day]')) { ui.addingDay = false; return render(); }
+      if (target.closest('[data-add-exercise]')) { ui.addingExercise = true; ui.addingDay = false; pickedExercise = ''; ui.search = ''; return render(); }
+      if (target.closest('[data-cancel-add-exercise]')) { ui.addingExercise = false; pickedExercise = ''; ui.search = ''; return render(); }
+
+      const pick = target.closest('[data-pick-exercise]');
+      if (pick) { pickedExercise = pick.dataset.pickExercise; return render(); }
+
+      if (target.closest('[data-cancel-edit]')) { ui.editingPlannedId = null; return render(); }
+      const recap = target.closest('[data-recap]');
+      if (recap) { ui.openRecapId = ui.openRecapId === recap.dataset.recap ? null : recap.dataset.recap; return render(); }
+
+      const removePlanned = target.closest('[data-remove-planned]');
+      if (removePlanned) {
+        const item = day().planned.find((entry) => entry.id === removePlanned.dataset.removePlanned);
+        const name = byId(item.exerciseId).name;
+        ui.pendingRemove = item.id;
+        ui.dialog = { title: '从「' + day().name + '」移除「' + name + '」？', body: '这个动作的目标就不再属于该训练日。已经完成的历史训练记录会完整保留。', impact: '这个动作有 ' + item.recent.length + ' 条完成记录，记录本身不会被删除，只是不再挂在这个训练日下。', confirm: '移除动作', danger: true, action: 'remove-planned' };
+        return render();
+      }
+      const removeDay = target.closest('[data-remove-day]');
+      if (removeDay) {
+        const current = day();
+        const count = current.planned.length;
+        ui.dialog = { title: '删除训练日「' + current.name + '」？', body: '这个训练日和它下面的动作目标会一起删除。', impact: count ? '该训练日下的 ' + count + ' 个动作会一并删除。已经完成的历史训练记录会保留。' : '这个训练日还没有动作。', confirm: '删除训练日', danger: true, action: 'remove-day' };
+        return render();
+      }
+      if (target.closest('[data-toggle-archived]')) { ui.archivedOpen = !ui.archivedOpen; return render(); }
+      if (target.closest('[data-save-day]')) return flash('训练日设置已更新。');
+      if (target.closest('[data-toast]')) return flash(target.closest('[data-toast]').dataset.toast);
+    });
+
+    document.getElementById('stage').addEventListener('input', (event) => {
+      const search = event.target.closest('[data-search]');
+      if (search) { ui.search = search.value; const caret = search.selectionStart; render(); const next = document.querySelector('[data-search]'); next.focus(); next.setSelectionRange(caret, caret); return; }
+    });
+    document.getElementById('stage').addEventListener('change', (event) => {
+      if (event.target.closest('[data-day-weekday]')) flash('建议星期已更新为「' + (event.target.value === '' ? '不指定' : WEEKDAYS[Number(event.target.value)]) + '」。');
+    });
+    document.getElementById('stage').addEventListener('submit', (event) => {
+      const form = event.target.closest('form');
+      if (!form) return;
+      event.preventDefault();
+      const data = new FormData(form);
+      if (form.matches('[data-add-day]')) {
+        seq += 1;
+        const weekdayRaw = String(data.get('weekday'));
+        plan().days.push({ id: 'd' + seq, name: String(data.get('name')), weekday: weekdayRaw === '' ? null : Number(weekdayRaw), version: 1, planned: [] });
+        const created = plan().days.at(-1);
+        ui.dayByPlan[plan().id] = created.id;
+        ui.addingDay = false;
+        return flash('训练日「' + created.name + '」已创建。');
+      }
+      if (form.matches('[data-add-planned]')) {
+        const exerciseId = String(data.get('exerciseId'));
+        if (!exerciseId) return;
+        const weightRaw = String(data.get('weight'));
+        seq += 1;
+        day().planned.push({ id: 'p' + seq, exerciseId, setCount: Number(data.get('setCount')), targetValue: Number(data.get('targetValue')), weightKg: weightRaw === '' ? null : Number(weightRaw), recent: [], suggestion: null });
+        ui.addingExercise = false; pickedExercise = ''; ui.search = '';
+        return flash('已把「' + byId(exerciseId).name + '」加进「' + day().name + '」。');
+      }
+      if (form.matches('[data-rename]')) {
+        const kind = form.dataset.rename;
+        const name = String(data.get('name'));
+        if (kind === 'plan') { plan().name = name; ui.editingPlanName = false; } else { day().name = name; ui.editingDayName = false; }
+        return flash('名称已更新。');
+      }
+      const edit = form.closest('[data-edit-planned]');
+      if (edit) {
+        const item = day().planned.find((entry) => entry.id === edit.dataset.editPlanned);
+        const weightRaw = String(data.get('weight'));
+        item.setCount = Number(data.get('setCount'));
+        item.targetValue = Number(data.get('targetValue'));
+        item.weightKg = weightRaw === '' ? null : Number(weightRaw);
+        ui.editingPlannedId = null;
+        return flash('「' + byId(item.exerciseId).name + '」的目标已更新。');
+      }
+    });
+    document.getElementById('stage').addEventListener('toggle', (event) => {
+      const details = event.target;
+      if (!(details instanceof HTMLDetailsElement)) return;
+      const recap = details.closest('[data-recap]');
+      if (recap) { ui.openRecapId = recap.open ? recap.dataset.recap : null; }
+      const edit = details.closest('[data-edit-details]');
+      if (edit) { ui.editingPlannedId = edit.open ? edit.closest('[data-planned]')?.dataset.planned ?? null : null; }
+    }, true);
+
+    document.addEventListener('keydown', (event) => {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
+      if (event.key === 'ArrowRight') step(1);
+      if (event.key === 'ArrowLeft') step(-1);
+      if (event.key === 'Escape') { ui.dialog = null; ui.drawerOpen = false; render(); }
+    });
+
+    const requested = new URLSearchParams(location.search).get('variant');
+    if (requested && VARIANTS.includes(requested.toUpperCase())) currentVariant = requested.toUpperCase();
+    render();
+  </script>
+</body>
+</html>

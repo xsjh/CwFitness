@@ -11,5 +11,5 @@
     "@cross-browser": { "match": ["tests/browser/cross-browser.spec.ts"], "engines": ["firefox", "webkit"] },
     "health-smoke": { "match": ["tests/smoke-api.test.mjs"], "always": true }
   },
-  "escalate-full": ["tests/**", "scripts/**", "vitest.config.ts", "playwright.config.ts", "prisma.config.ts", "prisma/**", "package.json", "package-lock.json", "next.config.ts", ".github/**", ".env*"]
+  "escalate-full": ["prototypes/**", "tests/**", "scripts/**", "vitest.config.ts", "playwright.config.ts", "prisma.config.ts", "prisma/**", "package.json", "package-lock.json", "next.config.ts", ".github/**", ".env*"]
 }
