@@ -244,7 +244,7 @@
 .plan-view .plan-title{display:block;width:auto;margin-top:7px;font-size:30px;font-weight:780;letter-spacing:-.035em}
 .plan-view .title-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px}
 .plan-view .title-input{max-width:min(520px,100%);border:1px solid rgba(194,219,134,.62);border-radius:8px;background:rgba(0,0,0,.34);padding:2px 8px;color:#fff;font:inherit;font-weight:750;outline:none}
-.plan-view .day-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:center;gap:8px;margin:18px 0 6px}
+.plan-view .day-strip{display:grid;grid-template-columns:repeat(7,104px);justify-content:start;align-items:center;gap:8px;margin:18px 0 6px}
 .plan-view .day-slot{display:grid;justify-items:start;min-width:0}
 .plan-view .day-slot[data-over]>.chip{background:rgba(194,219,134,.1);box-shadow:inset 0 0 0 1px rgba(194,219,134,.34);color:#e8f4cd}
 .plan-view .chip{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-width:96px;max-width:104px;height:32px;padding:0 10px;border:1px solid transparent;border-radius:999px;background:rgba(255,255,255,.055);color:var(--muted);font-size:12px;font-weight:700;user-select:none;cursor:grab;touch-action:none}
@@ -325,4 +325,4 @@
 .plan-view .dialog .dialog-form{display:grid;gap:14px;margin-top:18px}
 .plan-view .dialog .dialog-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}
 @media(max-width:1000px){.plan-view .vA-grid{grid-template-columns:1fr}.plan-view .ex-list{grid-template-columns:repeat(3,minmax(0,1fr))}.plan-view .plan-view-head{display:grid;gap:14px;align-items:start}.plan-view .plan-view-head .hint{max-width:none}}
-@media(max-width:700px){.plan-view .day-strip{gap:5px}.plan-view .chip{min-width:0;padding:0 7px;font-size:11px}.plan-view .chip.add .slot-plus{font-size:13px}.plan-view .ex-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-view .detail{padding:20px 18px}.plan-view .panel{padding:16px}.plan-view .plan-view-head{display:grid;gap:14px;align-items:start}.plan-view .plan-view-head .hint{max-width:none}.plan-view .day-actions-head{align-items:flex-start;flex-direction:column}.plan-view .field-row{align-items:stretch;flex-direction:column}.plan-view .detail-head{flex-direction:column;gap:14px}}
+@media(max-width:700px){.plan-view .day-strip{grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.plan-view .chip{min-width:0;padding:0 7px;font-size:11px}.plan-view .chip.add .slot-plus{font-size:13px}.plan-view .ex-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-view .detail{padding:20px 18px}.plan-view .panel{padding:16px}.plan-view .plan-view-head{display:grid;gap:14px;align-items:start}.plan-view .plan-view-head .hint{max-width:none}.plan-view .day-actions-head{align-items:flex-start;flex-direction:column}.plan-view .field-row{align-items:stretch;flex-direction:column}.plan-view .detail-head{flex-direction:column;gap:14px}}
