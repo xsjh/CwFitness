@@ -788,12 +788,11 @@ export function PlanEditor(props: PlanEditorProps) {
                         <span className="chip-when">{weekdayLabel(day.suggestedWeekday)}</span>
                         <svg className="chip-trash" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                           <path
-                            d="M3.6 4.6h8.8M6.6 2.6h2.8M5.1 4.6l.55 8.05c.05.72.65 1.25 1.37 1.25h1.96c.72 0 1.32-.53 1.37-1.25L10.9 4.6M6.8 6.9v4.3M9.2 6.9v4.3"
+                            d="M4 4l8 8M12 4l-8 8"
                             fill="none"
                             stroke="currentColor"
-                            strokeWidth="1.25"
+                            strokeWidth="1.6"
                             strokeLinecap="round"
-                            strokeLinejoin="round"
                           />
                         </svg>
                       </button>

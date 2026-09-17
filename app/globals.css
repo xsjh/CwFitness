@@ -252,10 +252,9 @@
 .plan-view .chip button{height:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:inherit}
 .plan-view .chip .chip-drop{display:inline-grid;place-items:center;color:var(--faint);cursor:pointer}
 .plan-view .chip .chip-when,.plan-view .chip .chip-trash{grid-area:1/1;transition:opacity .12s var(--ease)}
-.plan-view .chip .chip-trash{opacity:0;color:var(--danger)}
 .plan-view .chip:hover .chip-trash,.plan-view .chip .chip-drop:focus-visible .chip-trash{opacity:1}
 .plan-view .chip:hover .chip-when,.plan-view .chip .chip-drop:focus-visible .chip-when{opacity:0}
-.plan-view .chip .chip-trash svg{display:block;width:14px;height:14px}
+.plan-view .chip .chip-trash{display:block;width:13px;height:13px;opacity:0;color:var(--faint)}
 .plan-view .chip[data-dragging]{z-index:40;border-radius:999px;background:rgba(22,25,26,.96);box-shadow:0 16px 38px rgba(0,0,0,.5);will-change:transform}
 .plan-view .chip[data-dragging] .chip-when{opacity:1}
 .plan-view .chip[data-dragging] .chip-trash{opacity:0}
