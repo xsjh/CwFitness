@@ -96,6 +96,34 @@ function stubCardLayout() {
 }
 
 /**
+ * The Day rows stack vertically, so the stub reports boxes one row apart — the axis that list
+ * actually arranges along. The grid constants would put every row on the same line, and a vertical
+ * carry measured against those boxes could never reach a neighbour.
+ */
+const DAY_SIZE = { width: 220, height: 40 };
+const DAY_STRIDE = DAY_SIZE.height + 8;
+
+function stubDayLayout() {
+  const rows = () => screen.getAllByTestId("day-index-item");
+  rows().forEach((row) => {
+    row.getBoundingClientRect = () => {
+      const index = rows().indexOf(row);
+      const top = GRID_ORIGIN.top + Math.max(index, 0) * DAY_STRIDE;
+      const left = GRID_ORIGIN.left;
+      return { left, top, right: left + DAY_SIZE.width, bottom: top + DAY_SIZE.height, width: DAY_SIZE.width, height: DAY_SIZE.height, x: left, y: top, toJSON: () => ({}) } as DOMRect;
+    };
+  });
+}
+
+/** Carries a Day row `rows` rows down the list (negative for up) and releases it. */
+async function dragDayRow(handle: HTMLElement, rows: number) {
+  const from = handle.getBoundingClientRect();
+  const startX = from.left + 4;
+  const startY = from.top + 4;
+  await pressAndCarry(handle, startX, startY, startX, startY + rows * DAY_STRIDE);
+}
+
+/**
  * How far the pointer has to travel before the card is picked up. Mirrors the component's own
  * threshold: the tests have to cross it, not restate what it is.
  */
@@ -174,32 +202,52 @@ describe("PlanEditor", () => {
     expect(screen.queryAllByTestId("planned-row")).toHaveLength(0);
   });
 
-  it("hides the reorder arrows until 调整顺序 is on, then sends the full ordered Day list", async () => {
+  it("opens the new-plan composer from the panel's own ＋ and offers no reorder toggle", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    // Reordering is the drag itself now, so the switch that used to arm it is gone — and the ＋
+    // that took its place is the same toggle, toggling: the composer opens and closes under it.
+    expect(screen.queryByRole("button", { name: "调整顺序" })).toBeNull();
+    expect(screen.queryByTestId("plan-form")).toBeNull();
+
+    const add = screen.getByRole("button", { name: "新建计划" });
+    await user.click(add);
+    expect(screen.getByTestId("plan-form")).toBeTruthy();
+    expect(add.getAttribute("aria-pressed")).toBe("true");
+
+    await user.click(add);
+    expect(screen.queryByTestId("plan-form")).toBeNull();
+  });
+
+  it("reorders Workout Days by dragging one row onto another's slot", async () => {
     const user = userEvent.setup();
     const handlers = renderEditor();
 
-    // The Workout Day rows live in the plan accordion, so open it before looking for arrows.
+    // The Workout Day rows live in the plan accordion, so open it before reaching for them.
     await user.click(screen.getByRole("button", { name: /力量基础/ }));
-    expect(screen.queryByRole("button", { name: /下移第 1 个训练日/ })).toBeNull();
+    stubDayLayout();
 
-    await user.click(screen.getByRole("button", { name: "调整顺序" }));
-    await user.click(screen.getByRole("button", { name: /下移第 1 个训练日/ }));
+    // Row 1 is carried down one row, onto row 2's slot. The two trade places.
+    await dragDayRow(screen.getAllByTestId("day-index-item")[0], 1);
 
     expect(handlers.onReorderDays).toHaveBeenCalledWith(expect.objectContaining({ id: "plan-1" }), ["day-2", "day-1"]);
   });
 
-  it("reorders Planned Exercises with the same full-list contract", async () => {
+  it("keeps a press on a Day row a click rather than a drag", async () => {
     const user = userEvent.setup();
     const handlers = renderEditor();
 
-    await user.click(screen.getByRole("button", { name: "调整顺序" }));
-    await user.click(screen.getByRole("button", { name: /下移 杠铃深蹲/ }));
+    await user.click(screen.getByRole("button", { name: /力量基础/ }));
+    stubDayLayout();
+    expect(screen.getAllByTestId("planned-row")).toHaveLength(2);
 
-    expect(handlers.onReorderPlannedExercises).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "plan-1" }),
-      expect.objectContaining({ id: "day-1" }),
-      ["planned-2", "planned-1"],
-    );
+    // The row is the handle, so a press that goes nowhere has to stay the click it looks like:
+    // the Day switches, and nothing is reordered.
+    await user.click(within(screen.getAllByTestId("day-index-item")[1]).getByRole("button"));
+
+    expect(handlers.onReorderDays).not.toHaveBeenCalled();
+    expect(screen.queryAllByTestId("planned-row")).toHaveLength(0);
   });
 
   it("asks through its own dialog before deleting a Workout Day", async () => {

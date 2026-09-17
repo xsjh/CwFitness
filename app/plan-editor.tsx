@@ -16,6 +16,7 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -72,15 +73,6 @@ function weightLabel(planned: PlannedExercise, weightUnit: "kg" | "lb") {
   return planned.exercise.resistanceType === "WEIGHTED" && planned.weightGrams !== null
     ? weightFromGrams(planned.weightGrams, weightUnit).toFixed(1)
     : null;
-}
-
-/** Returns a new array with one item moved, or `null` when the move would fall outside. */
-function moved(list: string[], from: number, to: number) {
-  if (to < 0 || to >= list.length) return null;
-  const next = [...list];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
 }
 
 /** The cards currently on screen, in DOM order — which is always the arrangement being shown. */
@@ -174,6 +166,39 @@ function SortableCard({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
+/**
+ * One Workout Day in the plan accordion, as a row that can be picked up and set down elsewhere in
+ * the list.
+ *
+ * Same shape and same reasons as `SortableCard` above — a component rather than a call inside
+ * `map` because `useSortable` is a hook, listeners on the whole row so it is picked up rather than
+ * grabbed by a handle, and the role restated after the attributes so dnd-kit's `role="button"`
+ * does not wrap the row's own button.
+ *
+ * The row is its own sortable list rather than a second entry in the exercise grid's: the two live
+ * in different columns of the page and never carry at the same time, so one `DndContext` each keeps
+ * the collision detection to the list actually being sorted.
+ */
+function SortableDayRow({ id, selected, children }: { id: string; selected: boolean; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <li
+      ref={setNodeRef}
+      className="day-row row"
+      data-testid="day-index-item"
+      data-day-id={id}
+      data-selected={selected ? "true" : undefined}
+      data-dragging={isDragging ? "true" : undefined}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      role="group"
+      {...listeners}
+    >
+      {children}
+    </li>
+  );
+}
+
 function meterBars(recent: ExerciseProgress["recent"]) {
   return recent.map((entry, index) => {
     const state = entry.achievementRate >= 100 ? "on" : entry.achievementRate >= 80 ? "hi" : "lo";
@@ -215,7 +240,6 @@ export function PlanEditor(props: PlanEditorProps) {
   const [dayByPlan, setDayByPlan] = useState<Record<string, string>>({});
   const [expandedPlanId, setExpandedPlanId] = useState("");
   const [archivedOpen, setArchivedOpen] = useState(false);
-  const [sortMode, setSortMode] = useState(false);
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
   const [isAddingDay, setIsAddingDay] = useState(false);
   const [isAddingPlannedExercise, setIsAddingPlannedExercise] = useState(false);
@@ -355,16 +379,22 @@ export function PlanEditor(props: PlanEditorProps) {
     setSearch("");
   }
 
-  function moveDay(index: number, delta: number) {
-    if (!selectedPlan) return;
-    const next = moved(selectedPlan.workoutDays.map((day) => day.id), index, index + delta);
-    if (next) void onReorderDays(selectedPlan, next);
-  }
-
-  function movePlannedExercise(index: number, delta: number) {
-    if (!selectedPlan || !selectedDay) return;
-    const next = moved(selectedDay.plannedExercises.map((planned) => planned.id), index, index + delta);
-    if (next) void onReorderPlannedExercises(selectedPlan, selectedDay, next);
+  /**
+   * A Workout Day was let go over the list.
+   *
+   * Same contract as `dropPlannedExercise` below: dnd-kit reports the row that was lifted and the
+   * row it came to rest on, and `arrayMove` turns those two ids into the new order. The Day rows
+   * are one column rather than a grid, so the distance that decides a swap is vertical — the
+   * strategy on the list says so, not this handler.
+   */
+  function dropDay(plan: Plan, event: DragEndEvent) {
+    const { active, over } = event;
+    if (over === null || active.id === over.id) return;
+    const ids = plan.workoutDays.map((day) => day.id);
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+    void onReorderDays(plan, arrayMove(ids, from, to));
   }
 
   /**
@@ -446,59 +476,56 @@ export function PlanEditor(props: PlanEditorProps) {
     const expanded = openPlanId === plan.id;
     return (
       <li className="plan-row row" key={plan.id} data-testid="plan-row" data-selected={selected || undefined}>
-        <div className="rail-head-mark" />
-        <div>
-          <button
-            className="row-main"
-            type="button"
-            aria-current={selected ? "true" : "false"}
-            aria-expanded={expanded ? "true" : "false"}
-            onClick={() => selectPlan(plan.id)}
+        <button
+          className="row-main"
+          type="button"
+          aria-current={selected ? "true" : "false"}
+          aria-expanded={expanded ? "true" : "false"}
+          onClick={() => selectPlan(plan.id)}
+        >
+          <span style={{ minWidth: 0 }}>
+            <h4>{plan.name}</h4>
+            <span className="meta">{plan.workoutDays.length} 个训练日 · {plannedCount(plan)} 个动作</span>
+          </span>
+          <span className="trail"><span className="chev">{expanded ? "⌄" : "›"}</span></span>
+        </button>
+        {expanded && (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={(event) => dropDay(plan, event)}
           >
-            <span style={{ minWidth: 0 }}>
-              <h4>{plan.name}</h4>
-              <span className="meta">{plan.workoutDays.length} 个训练日 · {plannedCount(plan)} 个动作</span>
-            </span>
-            <span className="trail"><span className="chev">{expanded ? "⌄" : "›"}</span></span>
-          </button>
-          {expanded && (
-            <ul className="daylist">
-              {plan.workoutDays.map((day, dayIndex) => (
-                <li className="day-row row" key={day.id} data-testid="day-index-item" data-selected={selected && day.id === selectedDay?.id ? "true" : undefined}>
-                  <div>
-                    {sortMode && (
-                      <>
-                        <button className="btn icon" type="button" disabled={dayIndex === 0} aria-label={`上移第 ${dayIndex + 1} 个训练日`} onClick={() => moveDay(dayIndex, -1)}>↑</button>
-                        <button className="btn icon" type="button" disabled={dayIndex === plan.workoutDays.length - 1} aria-label={`下移第 ${dayIndex + 1} 个训练日`} onClick={() => moveDay(dayIndex, 1)}>↓</button>
-                      </>
-                    )}
-                  </div>
-                  <button
-                    className="row-main"
-                    type="button"
-                    onClick={() => {
-                      if (!selected) onSelectPlan(plan.id);
-                      setExpandedPlanId(plan.id);
-                      resetDayContext();
-                      setIsRenamingPlan(false);
-                      setDayByPlan((current) => ({ ...current, [plan.id]: day.id }));
-                    }}
-                  >
-                    <span style={{ minWidth: 0 }}>
-                      <h4>{day.name}</h4>
-                      <span className="meta">{weekdayLabel(day.suggestedWeekday)} · {day.plannedExercises.length > 0 ? `${day.plannedExercises.length} 个动作` : "还没有动作"}</span>
-                    </span>
+            <SortableContext items={plan.workoutDays.map((day) => day.id)} strategy={verticalListSortingStrategy}>
+              <ul className="daylist">
+                {plan.workoutDays.map((day) => (
+                  <SortableDayRow key={day.id} id={day.id} selected={selected && day.id === selectedDay?.id}>
+                    <button
+                      className="row-main"
+                      type="button"
+                      onClick={() => {
+                        if (!selected) onSelectPlan(plan.id);
+                        setExpandedPlanId(plan.id);
+                        resetDayContext();
+                        setIsRenamingPlan(false);
+                        setDayByPlan((current) => ({ ...current, [plan.id]: day.id }));
+                      }}
+                    >
+                      <span style={{ minWidth: 0 }}>
+                        <h4>{day.name}</h4>
+                        <span className="meta">{weekdayLabel(day.suggestedWeekday)} · {day.plannedExercises.length > 0 ? `${day.plannedExercises.length} 个动作` : "还没有动作"}</span>
+                      </span>
+                    </button>
+                  </SortableDayRow>
+                ))}
+                <li>
+                  <button className="add-inline" type="button" onClick={() => { if (!selected) onSelectPlan(plan.id); setExpandedPlanId(plan.id); resetDayContext(); setIsAddingDay(true); }}>
+                    <i>＋</i>新建训练日
                   </button>
                 </li>
-              ))}
-              <li>
-                <button className="add-inline" type="button" onClick={() => { if (!selected) onSelectPlan(plan.id); setExpandedPlanId(plan.id); resetDayContext(); setIsAddingDay(true); }}>
-                  <i>＋</i>新建训练日
-                </button>
-              </li>
-            </ul>
-          )}
-        </div>
+              </ul>
+            </SortableContext>
+          </DndContext>
+        )}
       </li>
     );
   }
@@ -517,10 +544,15 @@ export function PlanEditor(props: PlanEditorProps) {
         <aside className="card panel" aria-label="计划与训练日">
           <div className="panel-head">
             <h2>计划</h2>
-            <div className="segmented" role="group" aria-label="计划操作">
-              <button type="button" aria-pressed={isCreatingPlan ? "true" : "false"} onClick={() => setIsCreatingPlan((open) => !open)}>新建计划</button>
-              <button type="button" aria-pressed={sortMode ? "true" : "false"} onClick={() => setSortMode((open) => !open)}>调整顺序</button>
-            </div>
+            <button
+              className="panel-add"
+              type="button"
+              aria-label="新建计划"
+              aria-pressed={isCreatingPlan ? "true" : "false"}
+              onClick={() => setIsCreatingPlan((open) => !open)}
+            >
+              <span aria-hidden="true">＋</span>
+            </button>
           </div>
 
           {isCreatingPlan && (
@@ -552,7 +584,6 @@ export function PlanEditor(props: PlanEditorProps) {
                 <ul className="plans">
                   {archivedPlans.map((plan) => (
                     <li className="row" key={plan.id} data-selected={plan.id === selectedPlan?.id ? "true" : undefined}>
-                      <div />
                       <button className="row-main" type="button" onClick={() => { onSelectPlan(plan.id); setExpandedPlanId(""); resetDayContext(); }}>
                         <span style={{ minWidth: 0 }}>
                           <h4 style={{ color: "var(--muted)" }}>{plan.name}</h4>
@@ -803,7 +834,7 @@ export function PlanEditor(props: PlanEditorProps) {
                       strategy={rectSortingStrategy}
                     >
                       <div className="ex-list" ref={listRef} data-dragging-grid={draggingId === "" ? undefined : "true"}>
-                        {selectedDay.plannedExercises.map((planned, index) => {
+                        {selectedDay.plannedExercises.map((planned) => {
                           const record = progressFor(planned);
                           const latest = record?.recent.at(-1);
                           const openRecap = openRecapId === planned.id;
@@ -811,14 +842,6 @@ export function PlanEditor(props: PlanEditorProps) {
                             <SortableCard key={planned.id} id={planned.id}>
                               <h4>{planned.exercise.name}</h4>
                               <p className="nums">{plannedTarget(planned)}</p>
-                              <div className="ex-actions">
-                                {sortMode && (
-                                  <>
-                                    <button className="btn icon" type="button" disabled={index === 0} aria-label={`上移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, -1)}>↑</button>
-                                    <button className="btn icon" type="button" disabled={index === selectedDay.plannedExercises.length - 1} aria-label={`下移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, 1)}>↓</button>
-                                  </>
-                                )}
-                              </div>
                               <div className="card-actions">
                                 <details className="inline-edit" open={editingPlannedId === planned.id || undefined}>
                                   <summary
