@@ -245,9 +245,9 @@
 .plan-view .title-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px}
 .plan-view .title-input{max-width:min(520px,100%);border:1px solid rgba(194,219,134,.62);border-radius:8px;background:rgba(0,0,0,.34);padding:2px 8px;color:#fff;font:inherit;font-weight:750;outline:none}
 .plan-view .day-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:center;gap:8px;margin:18px 0 6px}
-.plan-view .day-slot{display:grid;min-width:0}
+.plan-view .day-slot{display:grid;justify-items:center;min-width:0}
 .plan-view .day-slot[data-over]>.chip{background:rgba(194,219,134,.1);box-shadow:inset 0 0 0 1px rgba(194,219,134,.34);color:#e8f4cd}
-.plan-view .chip{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;height:32px;padding:0 10px;border:1px solid transparent;border-radius:999px;background:rgba(255,255,255,.055);color:var(--muted);font-size:12px;font-weight:700;user-select:none;cursor:grab;touch-action:none}
+.plan-view .chip{display:flex;align-items:center;justify-content:space-between;gap:6px;max-width:min(104px,100%);min-width:0;height:32px;padding:0 10px;border:1px solid transparent;border-radius:999px;background:rgba(255,255,255,.055);color:var(--muted);font-size:12px;font-weight:700;user-select:none;cursor:grab;touch-action:none}
 .plan-view .chip:hover{background:rgba(255,255,255,.1);color:#fff}
 .plan-view .chip[data-selected]{background:rgba(194,219,134,.14);box-shadow:inset 0 0 0 1px rgba(194,219,134,.34);color:#e8f4cd}
 .plan-view .chip span{color:var(--faint)}
@@ -262,7 +262,7 @@
 .plan-view .chip[data-dragging] .chip-when{opacity:1}
 .plan-view .chip[data-dragging] .chip-trash{opacity:0}
 .plan-view .day-strip:has(.chip[data-dragging]){cursor:grabbing;user-select:none}
-.plan-view .chip.add{display:grid;place-items:center;padding:0 6px;border:1px dashed rgba(255,255,255,.2);background:transparent;color:var(--faint);cursor:pointer}
+.plan-view .chip.add{display:grid;place-items:center;justify-self:stretch;max-width:none;padding:0 6px;border:1px dashed rgba(255,255,255,.2);background:transparent;color:var(--faint);cursor:pointer}
 .plan-view .chip.add .slot-when,.plan-view .chip.add .slot-plus{grid-area:1/1;transition:opacity .12s var(--ease)}
 .plan-view .chip.add .slot-plus{opacity:0;color:var(--muted);font-size:14px;line-height:1}
 .plan-view .chip.add:hover{border-color:rgba(255,255,255,.36);background:rgba(255,255,255,.05);color:var(--muted)}
