@@ -63,25 +63,49 @@ function renderEditor(overrides: Partial<Parameters<typeof PlanEditor>[0]> = {})
 }
 
 /**
- * jsdom reports every rect as zero, so the drag's hit-testing has nothing to work with. Laying the
- * cards out in a row gives them distinct, non-overlapping geometry to resolve against.
+ * jsdom reports every rect as zero, so the drag's lattice has nothing to read. This installs a
+ * layout that behaves like the real grid: each card reports the box its *position in the DOM*
+ * earns it, so the stub stays in step with the arrangement as the drag swaps cards around.
+ *
+ * The alternative — writing coordinates onto each card once — freezes the layout at press time, and
+ * a drag that measures those frozen boxes can never see its own swaps.
  */
-function stubCardLayout(cards: HTMLElement[]) {
-  cards.forEach((card, index) => {
-    const left = index * 100;
-    card.getBoundingClientRect = () => ({ left, top: 0, right: left + 80, bottom: 60, width: 80, height: 60, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
-    Object.defineProperty(card, "offsetLeft", { value: left, configurable: true });
-    Object.defineProperty(card, "offsetTop", { value: 0, configurable: true });
+const CARD_SIZE = { width: 80, height: 60 };
+const CARD_GAP = 20;
+const STRIDE = CARD_SIZE.width + CARD_GAP;
+/**
+ * Where the grid actually starts, in page coordinates.
+ *
+ * Deliberately not zero, and deliberately not a multiple of `STRIDE`: the real list sits inside the
+ * page's own margins, so its cells are at things like 438 and 663. A layout stubbed from the origin
+ * puts the cells exactly on `round(value / STRIDE) * STRIDE`, which is the one arrangement where a
+ * snap measured from zero and a snap measured from the first cell agree — and a test written on it
+ * cannot tell the two apart.
+ */
+const GRID_ORIGIN = { left: 38, top: 17 };
+
+function stubCardLayout() {
+  const cards = () => screen.getAllByTestId("planned-row");
+  cards().forEach((card) => {
+    card.getBoundingClientRect = () => {
+      const index = cards().indexOf(card);
+      const left = GRID_ORIGIN.left + Math.max(index, 0) * STRIDE;
+      const top = GRID_ORIGIN.top;
+      return { left, top, right: left + CARD_SIZE.width, bottom: top + CARD_SIZE.height, width: CARD_SIZE.width, height: CARD_SIZE.height, x: left, y: top, toJSON: () => ({}) } as DOMRect;
+    };
   });
 }
 
 /**
- * Drives a press on `handle`, moves it to `dropX` (a viewport x from `stubCardLayout`'s row), then
- * releases. The pointer has to be placed by hand: where a card lands depends on which side of a
- * neighbouring card's centre the pointer ends up, and expressing that as a ratio of the target's
- * width hides the very boundary the test is about.
+ * Drives a press on a card, carries it `slots` cells to the right (negative for left) and `rows`
+ * cells down, then releases.
+ *
+ * The distance is measured in cells rather than pixels because that is the unit the drag works in:
+ * the card keeps whatever grab offset the press gave it, so what decides the outcome is how far the
+ * pointer travelled. Naming the movement in the pointer's own coordinates is also what makes the
+ * test independent of where inside the card it happened to be grabbed.
  */
-async function dragCard(handle: HTMLElement, dropX: number) {
+async function dragCard(handle: HTMLElement, slots: number, rows = 0) {
   const from = handle.getBoundingClientRect();
   const startX = from.left + 4;
   const startY = from.top + 4;
@@ -89,8 +113,22 @@ async function dragCard(handle: HTMLElement, dropX: number) {
   fireEvent.pointerDown(handle, { button: 0, clientX: startX, clientY: startY });
   // jsdom has no PointerEvent, so these are plain events on the document — which is exactly where
   // the component listens for them.
-  fireEvent(document, pointerMove(dropX, startY));
-  fireEvent.pointerUp(document, { clientX: dropX, clientY: startY });
+  const dropX = startX + slots * STRIDE;
+  const dropY = startY + rows * STRIDE;
+  fireEvent(document, pointerMove(dropX, dropY));
+  fireEvent.pointerUp(document, { clientX: dropX, clientY: dropY });
+  await act(async () => { await Promise.resolve(); });
+}
+
+/** A part-cell carry, for the cases that need to land short of a full snap. */
+async function dragCardBy(handle: HTMLElement, dx: number, dy = 0) {
+  const from = handle.getBoundingClientRect();
+  const startX = from.left + 4;
+  const startY = from.top + 4;
+
+  fireEvent.pointerDown(handle, { button: 0, clientX: startX, clientY: startY });
+  fireEvent(document, pointerMove(startX + dx, startY + dy));
+  fireEvent.pointerUp(document, { clientX: startX + dx, clientY: startY + dy });
   await act(async () => { await Promise.resolve(); });
 }
 
@@ -244,10 +282,11 @@ describe("PlanEditor", () => {
   it("reorders Planned Exercises by dragging one card onto another's slot", async () => {
     const handlers = renderEditor();
     const cards = () => screen.getAllByTestId("planned-row");
-    stubCardLayout(cards());
+    stubCardLayout();
 
-    // Dragged left, past the first card's centre line, so it takes that slot and the other shifts up.
-    await dragCard(cards()[1], 20);
+    // Card 2 starts in column 1 and is carried one cell left, into the cell card 1 owns. The two
+    // trade slots, so card 2 now leads.
+    await dragCard(cards()[1], -1);
 
     expect(handlers.onReorderPlannedExercises).toHaveBeenCalledWith(
       expect.objectContaining({ id: "plan-1" }),
@@ -256,14 +295,69 @@ describe("PlanEditor", () => {
     );
   });
 
-  it("keeps a card in place when the pointer stays on its own half", async () => {
-    // The boundary between two slots runs through a card's centre line, so wandering around inside
-    // a card's own half — which is what a slightly imprecise grab looks like — must not reorder.
+  it("snaps a card to the nearest slot instead of leaving it between two", async () => {
+    // Just under half a cell rounds back to where the card started; just over half rounds on to the
+    // next column and the two cards trade places. Asserting both sides is what pins the snap to the
+    // halfway rule rather than to "somewhere past a card".
     const handlers = renderEditor();
     const cards = () => screen.getAllByTestId("planned-row");
-    stubCardLayout(cards());
+    stubCardLayout();
 
-    await dragCard(cards()[0], 20);
+    await dragCardBy(cards()[1], -Math.round(STRIDE * 0.45));
+    expect(handlers.onReorderPlannedExercises, "just under half a cell is short of the snap").not.toHaveBeenCalled();
+
+    await dragCardBy(cards()[1], -Math.round(STRIDE * 0.55));
+    expect(handlers.onReorderPlannedExercises, "just over half a cell crosses into the next column").toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      ["planned-2", "planned-1"],
+    );
+  });
+
+  it("lands the carried card on a real cell of the list, not on a multiple of the cell pitch", async () => {
+    // The list is inset by the page's margins, so its cells are not at 0, STRIDE, 2 * STRIDE … A snap
+    // that measures from zero instead of from the first cell has nothing to put the card on until the
+    // pointer is half a cell away, and then leaves it a fraction of a cell off — a card parked
+    // between two cells while the outline under it says it is on one.
+    const handlers = renderEditor();
+    const cards = () => screen.getAllByTestId("planned-row");
+    stubCardLayout();
+
+    await dragCardBy(cards()[1], -Math.round(STRIDE * 0.6));
+
+    // The card was carried exactly one cell, so it owns the leading cell the way it would have if the
+    // pointer had gone a whole cell: the order changed, and the transform the snap left on the card
+    // is expressed against that cell and is retracted on release, leaving nothing behind.
+    expect(handlers.onReorderPlannedExercises).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      ["planned-2", "planned-1"],
+    );
+    expect(cards().map((card) => card.style.transform)).toEqual(["", ""]);
+  });
+
+  it("leaves no trace of the drag behind once the card is released", async () => {
+    // The carried card is positioned by a transform that holds it under the pointer. If that is not
+    // retracted on release the card stays parked beside the slot the list says it is in, and the
+    // next gesture measures its origin from there.
+    renderEditor();
+    const cards = () => screen.getAllByTestId("planned-row");
+    stubCardLayout();
+
+    await dragCard(cards()[1], -1);
+
+    expect(cards().map((card) => card.style.transform)).toEqual(["", ""]);
+    expect(cards().map((card) => card.dataset.dragging ?? "")).toEqual(["", ""]);
+  });
+
+  it("keeps a card in place when the pointer stays on its own slot", async () => {
+    // A fifth of a cell is short of the halfway point, so the snap rounds back to the slot the card
+    // came from and nothing has to move.
+    const handlers = renderEditor();
+    const cards = () => screen.getAllByTestId("planned-row");
+    stubCardLayout();
+
+    await dragCardBy(cards()[0], Math.round(STRIDE * 0.2));
 
     expect(handlers.onReorderPlannedExercises).not.toHaveBeenCalled();
   });
@@ -271,12 +365,28 @@ describe("PlanEditor", () => {
   it("does not start a drag from a control inside the card", async () => {
     const handlers = renderEditor();
     const cards = () => screen.getAllByTestId("planned-row");
-    stubCardLayout(cards());
+    stubCardLayout();
 
     // Pressing the edit summary has to stay a click; a press that lands on a control must not be
     // promoted into a reorder, or the popover would open and close on the same gesture.
-    await dragCard(within(cards()[0]).getByLabelText(/编辑 杠铃深蹲/), 160);
+    await dragCard(within(cards()[0]).getByLabelText(/编辑 杠铃深蹲/), 1);
 
     expect(handlers.onReorderPlannedExercises).not.toHaveBeenCalled();
+  });
+
+  it("shows the slot lattice only while a card is being carried", async () => {
+    renderEditor();
+    const cards = () => screen.getAllByTestId("planned-row");
+    stubCardLayout();
+
+    const list = document.querySelector(".ex-list") as HTMLElement;
+    expect(list.dataset.draggingGrid).toBeUndefined();
+
+    fireEvent.pointerDown(cards()[0], { button: 0, clientX: 4, clientY: 4 });
+    expect(list.dataset.draggingGrid).toBe("true");
+
+    fireEvent.pointerUp(document, { clientX: 4, clientY: 4 });
+    await act(async () => { await Promise.resolve(); });
+    expect(list.dataset.draggingGrid).toBeUndefined();
   });
 });

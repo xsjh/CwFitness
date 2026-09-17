@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { weightFromGrams } from "../lib/weights";
 import type { Exercise, ExerciseProgress, Plan, PlannedExercise, WorkoutDay } from "./workout-types";
 
@@ -65,49 +72,124 @@ function plannedCards() {
 }
 
 /**
- * Slides each resting card toward the slot it would take once the dragged card lands, by
- * translating it from where it is now to where that slot is. Only transform is touched, so the
- * list never reflows and the measurement stays valid for the next frame.
+ * The lattice the cards are laid out on, read off the cards themselves rather than off the
+ * stylesheet: the list is a grid of equal cells, so the step from one column to the next is the
+ * distance between two cards sitting side by side, and likewise down a column.
+ *
+ * The two steps are not the same number — a cell is as wide as a card plus the gutter, and as tall
+ * as a card plus the gutter, and those are different because cards are wider than they are tall —
+ * so they are derived separately. `null` means there is only one of that axis on screen, leaving
+ * nothing to take a step from.
+ *
+ * The steps are carried alongside the *rhythm* rather than the origin: where the first cell sits is
+ * `columns[0]`, and it is deliberately not folded into the step. A grid whose origin is the
+ * viewport's zero is a grid the cells may not sit on at all — the list is inset by the page's own
+ * margins, so `left` values are things like 438 and 663, and a snap of `round(643 / 225) * 225` lands
+ * on 675, a position no card has ever occupied.
  */
-function moveSiblings(cards: HTMLElement[], resting: (DOMRect | null)[]) {
-  cards.forEach((card, index) => {
-    const from = resting[index];
-    if (from === null || from === undefined) return;
-    const to = card.getBoundingClientRect();
-    card.style.transition = "transform 160ms var(--ease)";
-    card.style.transform = `translate3d(${Math.round(from.left - to.left)}px,${Math.round(from.top - to.top)}px,0)`;
+type Lattice = { columns: number[]; rows: number[]; columnStep: number | null; rowStep: number | null };
+
+function readLattice(rects: (DOMRect | null)[]): Lattice {
+  const positions = (pick: (rect: DOMRect) => number) => {
+    const values = rects.filter((rect): rect is DOMRect => rect !== null).map((rect) => Math.round(pick(rect)));
+    return [...new Set(values)].sort((a, b) => a - b);
+  };
+  const stepOf = (values: number[]) => {
+    if (values.length < 2) return null;
+    // The smallest gap is one cell. Taking the minimum rather than the average keeps the step right
+    // when the pointer moves over a row or column that is only partly filled.
+    let step = Infinity;
+    for (let index = 1; index < values.length; index += 1) step = Math.min(step, values[index] - values[index - 1]);
+    return step > 0 ? step : null;
+  };
+  const columns = positions((rect) => rect.left);
+  const rows = positions((rect) => rect.top);
+  return { columns, rows, columnStep: stepOf(columns), rowStep: stepOf(rows) };
+}
+
+/**
+ * Rounds a carried card back onto the lattice. The card follows the cursor, then snaps to the
+ * nearest cell, so it always settles in a slot instead of floating in a gap between two.
+ *
+ * Measured from the first cell rather than from the origin, because the cells are not required to be
+ * spaced from zero: `round((643 - 438) / 225) * 225 + 438` is 438, whereas snapping the raw value
+ * lands on 675 and puts the card between two cells.
+ *
+ * An axis with no step to snap to — a single column, or a list short enough to be one row — is left
+ * alone rather than snapped to zero, which would drag the card to the origin.
+ */
+function snapToGrid(left: number, top: number, lattice: Lattice) {
+  const snap = (value: number, step: number | null, cells: number[]) => {
+    if (step === null || cells.length === 0) return value;
+    const base = cells[0];
+    return Math.round((value - base) / step) * step + base;
+  };
+  return { left: snap(left, lattice.columnStep, lattice.columns), top: snap(top, lattice.rowStep, lattice.rows) };
+}
+
+/** Where a resting card sits, per card, in viewport coordinates and lattice units. */
+type DragOrigin = { left: number; top: number; column: number; row: number };
+
+/**
+ * Records where every card rests and which cell of the lattice each one owns. Read once per
+ * gesture: from that point on the resting cards only move by `transform`, and their boxes in the
+ * DOM keep describing the layout they started in.
+ */
+function readOrigins(rects: (DOMRect | null)[], lattice: Lattice) {
+  return rects.map<DragOrigin | null>((rect) => {
+    if (rect === null) return null;
+    return {
+      left: rect.left,
+      top: rect.top,
+      column: lattice.columns.indexOf(Math.round(rect.left)),
+      row: lattice.rows.indexOf(Math.round(rect.top)),
+    };
   });
 }
 
 /**
- * Picks the slot a dragged card would land in, given the pointer's viewport position.
- *
- * The target index is a *boundary* between cards, not a card: dropping into the gap before card 3
- * is index 3, and the gap after the last card is `cards.length`. The nearest boundary is found by
- * measuring the pointer against each card's mid-line, which keeps the decision uniform for a card
- * in the first column and one in the last.
- *
- * `skip` is the card being carried. It rides under the pointer, so leaving it in the search would
- * let it win the nearest-card test against the very slot the pointer is aiming at, and the list
- * would then never rearrange.
+ * The card standing in a given lattice cell, or null when the cell is free. This is what the
+ * carried card trades places with: they swap, so no card ever leaves the list and the rest keep the
+ * cells they were already in.
  */
-function dropSlotFor(cardRects: (DOMRect | null)[], pointer: { x: number; y: number }, skip: number) {
-  const { x, y } = pointer;
-  let best = -1;
-  let bestDistance = Infinity;
-  cardRects.forEach((rect, index) => {
-    if (!rect || index === skip) return;
-    const middle = rect.left + rect.width / 2;
-    // Folding the vertical distance into the same cost as the horizontal one is what makes a card
-    // in the row below reachable at all, and it is a plain Euclidean distance, so the boundary
-    // between "this row" and "the next" sits at the same offset in every column.
-    const distance = Math.hypot(rect.left - x, rect.top - y);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = x < middle ? index : index + 1;
-    }
-  });
-  return bestDistance === Infinity ? -1 : best;
+function coveredOrigin(origins: (DragOrigin | null)[], skip: number, column: number, row: number) {
+  for (let index = 0; index < origins.length; index += 1) {
+    const origin = origins[index];
+    if (origin === null || index === skip) continue;
+    if (origin.column === column && origin.row === row) return { index, origin };
+  }
+  return null;
+}
+
+/**
+ * Draws the lattice as `background-image`s rather than as elements: one outline per slot, painted
+ * over the whole list. Two reasons it is not a sibling element — an overlay would either swallow
+ * the pointer or need `pointer-events:none`, which the accessibility suite reads as a control that
+ * only shows on hover; and a per-cell element would add a box per slot for that same suite to
+ * collide-check. An outline is also literally "where the card will land", so the snap reads as the
+ * card settling onto the line.
+ *
+ * Each layer is written as longhands rather than as the `background` shorthand: the shorthand's
+ * `<position>/<size>` syntax is rejected when the layers are set through `style` one property at a
+ * time, and the whole grid silently fails to paint. The stroke is likewise a literal rather than
+ * `var(--line-soft)`, which cannot resolve inside a shorthand layer — it has to be kept in step
+ * with the token by hand.
+ *
+ * The stroke is brighter than the resting card border on purpose. The outline sits *outside* the
+ * card it belongs to, so during a carry it is competing with the card's own border for the same
+ * pixels; a tone at the token's weight reads as a doubled edge and disappears once a card has moved
+ * onto it. `GRID_INSET` is the gap that keeps the two edges as separate lines.
+ */
+const GRID_STROKE = "rgba(255,255,255,.2)";
+const GRID_INSET = 7;
+
+function gridLayers(boxes: { left: number; top: number; width: number; height: number }[]) {
+  return {
+    image: boxes.map(() => `linear-gradient(${GRID_STROKE},${GRID_STROKE})`).join(","),
+    position: boxes.map((box) => `${Math.round(box.left + GRID_INSET)}px ${Math.round(box.top + GRID_INSET)}px`).join(","),
+    size: boxes.map((box) => `${Math.round(box.width - GRID_INSET * 2)}px ${Math.round(box.height - GRID_INSET * 2)}px`).join(","),
+    repeat: boxes.map(() => "no-repeat").join(","),
+  };
 }
 
 function meterBars(recent: ExerciseProgress["recent"]) {
@@ -161,9 +243,15 @@ export function PlanEditor(props: PlanEditorProps) {
   const [search, setSearch] = useState("");
   const [pickedExerciseId, setPickedExerciseId] = useState("");
   // One piece of state drives the whole drag: `id` is the card under the pointer (live from press
-  // to release), and `committed` is the furthest slot it has already been allowed to occupy, kept
-  // separate so that sliding back toward the origin does not re-fire the reorder on every pixel.
-  const [drag, setDrag] = useState<{ id: string; committed: string } | null>(null);
+  // to release), and `slot` is the index of the resting card whose lattice cell the carried card is
+  // currently sitting in, or -1 when it is over a cell nobody owns. Nothing reads `slot` from the
+  // render — the swap it drives happens straight in the DOM — so it exists only to keep the last
+  // state of the gesture alive across re-renders.
+  const [drag, setDrag] = useState<{ id: string; slot: number } | null>(null);
+  // The lattice is drawn by an effect rather than by the JSX because it is a picture of where the
+  // cards actually are, and that is only knowable once layout has run.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const gridShown = useRef(false);
   // Read inside the drag effect but written by every press, so it lives in a ref: re-rendering on
   // each pointer move would make the card lag behind the cursor.
   const pointerAt = useRef({ x: 0, y: 0 });
@@ -186,6 +274,44 @@ export function PlanEditor(props: PlanEditorProps) {
     reorderTarget.current = selectedPlan !== null && selectedDay !== null ? { plan: selectedPlan, day: selectedDay } : null;
   }, [selectedPlan, selectedDay]);
 
+  // The lattice lives only for the length of a gesture: painted when a card is picked up, wiped
+  // when it is let go. It is written straight to the element instead of through `style` in the
+  // JSX on purpose — the boxes it draws come from layout, so putting it in the JSX would mean
+  // measuring during render and re-rendering to show the result, on every gesture.
+  //
+  // This runs on the press and on every rearrangement, which is exactly when the lattice can
+  // change: cards only ever move between slots, so the outlines are the same set in the same
+  // places until one does. `paintGrid` is shared with the drag effect, which owns the measurement.
+  const paintGrid = useCallback(() => {
+    const list = listRef.current;
+    if (list === null) return;
+    const cards = plannedCards();
+    if (cards.length === 0) return;
+    const listBox = list.getBoundingClientRect();
+    // The cards are drawn as an outline each: the gaps between them are exactly what the lattice is
+    // there to reveal, and a box under a resting card would be hidden by it.
+    const boxes = cards
+      .map((card) => card.getBoundingClientRect())
+      .map((rect) => ({ left: rect.left - listBox.left, top: rect.top - listBox.top, width: rect.width, height: rect.height }));
+    if (boxes.some((box) => box.width <= 0)) return;
+    const layers = gridLayers(boxes);
+    list.style.backgroundImage = layers.image;
+    list.style.backgroundPosition = layers.position;
+    list.style.backgroundSize = layers.size;
+    list.style.backgroundRepeat = layers.repeat;
+    gridShown.current = true;
+  }, []);
+
+  const clearGrid = useCallback(() => {
+    const list = listRef.current;
+    if (list === null || !gridShown.current) return;
+    list.style.backgroundImage = "";
+    list.style.backgroundPosition = "";
+    list.style.backgroundSize = "";
+    list.style.backgroundRepeat = "";
+    gridShown.current = false;
+  }, []);
+
   // `selectedPlanId` is owned by the workspace, so it can change without the rail being told
   // (creating a plan selects it, restoring a backup replaces every id). Derive the open row
   // during render so the rail can never disagree with the detail column.
@@ -197,6 +323,9 @@ export function PlanEditor(props: PlanEditorProps) {
     setEditingPlannedId("");
     setPickedExerciseId("");
     setSearch("");
+    // A gesture that never got its pointer-up (the Day was switched from the keyboard, or the list
+    // was rebuilt under it) would otherwise leave the card frozen in its carried state.
+    setDrag(null);
   }
 
   function selectPlan(planId: string) {
@@ -277,7 +406,7 @@ export function PlanEditor(props: PlanEditorProps) {
     if (event.target instanceof Element && event.target.closest("input,button,summary,details")) return;
     // A press would normally start a text selection, which fights the drag for the pointer.
     event.preventDefault();
-    setDrag({ id: plannedId, committed: plannedId });
+    setDrag({ id: plannedId, slot: -1 });
   }
 
   const draggingPlannedId = drag?.id ?? "";
@@ -286,22 +415,85 @@ export function PlanEditor(props: PlanEditorProps) {
   // it leaves the card almost immediately, and a re-render must not interrupt the capture.
   useEffect(() => {
     if (draggingPlannedId === "") return;
-    const source = plannedCards().find((card) => card.dataset.plannedId === draggingPlannedId);
-    if (source === undefined) return;
+    const cards = plannedCards();
+    const sourceIndex = cards.findIndex((card) => card.dataset.plannedId === draggingPlannedId);
+    if (sourceIndex === -1) return;
+    const source = cards[sourceIndex];
 
-    const origin = source.getBoundingClientRect();
+    const rects = cards.map((card) => card.getBoundingClientRect());
+    const origin = rects[sourceIndex];
     const grabX = pointerAt.current.x - origin.left;
     const grabY = pointerAt.current.y - origin.top;
     // The card is positioned against its nearest *positioned* ancestor, which is not the grid it
     // sits in, so `offsetLeft` cannot be used to convert viewport coordinates into a transform.
-    // Instead track where the card rests in viewport space and let the delta be the transform.
+    // Instead track the box the card is resting in, in viewport space, and let the delta from it be
+    // the transform. It is reassigned whenever the card trades cells, because the DOM order is
+    // rearranged as it goes and the box it belongs to goes with it.
     let restLeft = origin.left;
     let restTop = origin.top;
+    const lattice = readLattice(rects);
+    // Resting cards are only ever moved by `transform`, so the boxes captured here keep describing
+    // the lattice for the whole gesture: the snap and the swap both measure against these rather
+    // than against the live DOM, where a card in flight would report where the pointer put it.
+    const origins = readOrigins(rects, lattice);
     // Applied once so that the moves below, which read layout, are not measured against a stale
     // midpoint. From here the card is driven purely by `transform`, which never reflows the list.
     source.style.width = `${origin.width}px`;
     source.style.height = `${origin.height}px`;
     document.body.classList.add("is-dragging-card");
+    // Painted immediately rather than on the next frame: the boxes just measured are the ones the
+    // whole gesture resolves against, and a frame's delay invites the effect to be torn down by the
+    // re-render the press causes, taking the pending paint with it.
+    paintGrid();
+
+    /** The box a lattice cell stands for, in viewport coordinates. */
+    const slotBox = (column: number, row: number) => {
+      const left = lattice.columns[column];
+      const top = lattice.rows[row];
+      if (left === undefined || top === undefined) return null;
+      return { left, top };
+    };
+
+    /**
+     * Slides a resting card out of the cell it is losing, into the one being traded to it.
+     *
+     * Its DOM position is not touched: a card that has been pushed aside is still in the same place
+     * in the list — it has only been given the carried card's cell to sit in — so a transform is all
+     * that is needed, and the list never reflows mid-gesture.
+     *
+     * The slide is a transform that is immediately retracted: the offset puts the card back over
+     * its old cell for one frame, and clearing it lets the transition carry the card across.
+     */
+    const slideInto = (card: HTMLElement, column: number, row: number) => {
+      const to = slotBox(column, row);
+      if (to === null) return;
+      const at = card.getBoundingClientRect();
+      const dx = Math.round(at.left - to.left);
+      const dy = Math.round(at.top - to.top);
+      if (dx === 0 && dy === 0) return;
+      card.style.transition = "none";
+      card.style.transform = `translate3d(${dx}px,${dy}px,0)`;
+      // The offset only exists to be animated away, so it is cleared on the next frame; the browser
+      // has by then painted the card over its old cell and will tween from there.
+      requestAnimationFrame(() => {
+        card.style.transition = "transform 160ms var(--ease)";
+        card.style.transform = "";
+      });
+    };
+
+    /**
+     * Puts the carried card where the pointer is asking for it, given where it is currently resting.
+     *
+     * Factored out because it has to be said twice: once as the pointer moves, and again the instant
+     * the card trades cells — the trade changes which box the card rests in, and the transform the
+     * card is already wearing was measured against the box it just left. Saying it a second time
+     * settles the card onto the new cell in the same frame, instead of leaving it a cell's worth of
+     * pixels off until the pointer happens to move again.
+     */
+    const placeCarried = (card: HTMLElement, wanted: { left: number; top: number }) => {
+      card.style.transition = "none";
+      card.style.transform = `translate3d(${Math.round(wanted.left - restLeft)}px,${Math.round(wanted.top - restTop)}px,0)`;
+    };
 
     const move = (moveEvent: PointerEvent) => {
       pointerAt.current = { x: moveEvent.clientX, y: moveEvent.clientY };
@@ -311,46 +503,62 @@ export function PlanEditor(props: PlanEditorProps) {
       // would otherwise turn it into a slow-following shape trailing a dozen pixels behind the
       // cursor, and its `transitionend` would land mid-gesture and force a re-render.
       card.style.transition = "none";
-      card.style.transform = `translate3d(${Math.round(moveEvent.clientX - grabX - restLeft)}px,${Math.round(moveEvent.clientY - grabY - restTop)}px,0)`;
+      // The card rides the cursor, and the position it is riding to is rounded onto the lattice.
+      // Snapping the destination rather than the transform is what keeps the card under the
+      // pointer's grab point: the grid moves in whole cells, so the offset from the cursor to the
+      // card is the same at every stop.
+      const wanted = snapToGrid(moveEvent.clientX - grabX, moveEvent.clientY - grabY, lattice);
+      placeCarried(card, wanted);
       card.style.zIndex = "40";
       card.dataset.dragging = "true";
       // Let the hit-test fall through to the cards underneath, so the pointer can always be
       // matched against a real resting card instead of the one being carried.
       card.style.pointerEvents = "none";
 
-      const cards = plannedCards();
-      const rects = cards.map((item) => item.getBoundingClientRect());
-      const sourceIndex = cards.indexOf(card);
-      // `slot` is a boundary in the full list, so the card's own two boundaries (its index and the
-      // one just after it) both mean "no move" — they are where it already sits. That also covers
-      // the "pointer drifted a couple of pixels" case for free: a nudge that small cannot reach a
-      // neighbouring card's centre line, so it resolves to the card's own boundary and stops here.
-      const slot = dropSlotFor(rects, { x: moveEvent.clientX, y: moveEvent.clientY }, sourceIndex);
-      if (slot === -1) return;
-      // Shift down when the boundary is past the card, since lifting the card out removes one
-      // index from the range the target can live in.
-      const target = Math.min(slot > sourceIndex ? slot - 1 : slot, cards.length - 1);
-      if (target === sourceIndex) return;
-      if (target >= cards.length) return;
-      const list = card.parentElement;
-      if (list === null) return;
-      // Lift the card out before measuring, so that the geometry used to place the siblings
-      // describes the list as it will look once the card has landed.
-      card.remove();
-      cards.splice(sourceIndex, 1);
-      rects.splice(sourceIndex, 1);
-      list.insertBefore(card, cards[target] ?? null);
-      moveSiblings(cards, rects);
-      // The card now rests somewhere new, and the transform has to be expressed relative to that
-      // new resting place. Measuring it while the old transform is still applied would read the
-      // carried position instead, so clear the transform first and read the slot it truly occupies.
-      card.style.transition = "none";
-      card.style.transform = "";
-      const resting = card.getBoundingClientRect();
-      restLeft = resting.left;
-      restTop = resting.top;
-      card.style.transform = `translate3d(${Math.round(moveEvent.clientX - grabX - restLeft)}px,${Math.round(moveEvent.clientY - grabY - restTop)}px,0)`;
-      setDrag((current) => (current === null ? current : { ...current, committed: draggingPlannedId }));
+      // Which cell of the lattice the card is floating over: the cell it came from, plus however
+      // many whole cells it has been carried. Naming it this way means the swap can be resolved
+      // without a second measurement the carried card would only spoil.
+      const own = origins[sourceIndex];
+      const moveX = own === null || lattice.columnStep === null ? 0 : Math.round((wanted.left - own.left) / lattice.columnStep);
+      const moveY = own === null || lattice.rowStep === null ? 0 : Math.round((wanted.top - own.top) / lattice.rowStep);
+      if (own !== null) {
+        const over = { column: own.column + moveX, row: own.row + moveY };
+        // The cell the carried card is over belongs to whichever card stands there, so the two
+        // trade places: the neighbour takes the carried card's cell and the carried card takes the
+        // neighbour's. Only acting when the cell changes, and not on every pixel, keeps this to one
+        // swap per cell crossed.
+        const target = coveredOrigin(origins, sourceIndex, over.column, over.row);
+        if (target === null) return;
+        // The list is reordered to match, because the DOM order is what gets committed when the
+        // gesture ends: the carried card steps into the neighbour's place and everything between
+        // them shifts up. Only the two cards that changed cells are animated; the ones that merely
+        // shifted an index are left where they are, so the movement reads as a trade.
+        const list = card.parentElement;
+        if (list !== null) {
+          const held = card;
+          held.remove();
+          list.insertBefore(held, cards[target.index]);
+        }
+        slideInto(cards[target.index], own.column, own.row);
+        // The carried card has just been re-inserted elsewhere in the list, so the box it rests in
+        // has changed. The transform it is wearing is expressed against the old box, so it is
+        // rewritten against the new one in the same breath — otherwise the card would snap back to
+        // the slot it visually left, and stay there until the pointer moved again.
+        const landed = slotBox(over.column, over.row);
+        if (landed !== null) {
+          restLeft = landed.left;
+          restTop = landed.top;
+          placeCarried(card, wanted);
+        }
+        // The two cards have changed cells, so the origin table follows them or the next move
+        // would measure against cells that no longer hold anyone.
+        origins[sourceIndex] = target.origin;
+        origins[target.index] = own;
+        // The outlines are the cells, and the cells are the same ones — but the card animating out
+        // of a cell is still sitting in it for the length of the slide, so the lattice is redrawn
+        // only after that has run its course.
+        window.setTimeout(paintGrid, 170);
+      }
     };
 
     const up = () => finishPlannedDrag();
@@ -359,19 +567,34 @@ export function PlanEditor(props: PlanEditorProps) {
       if (keyEvent.key === "Escape") finishPlannedDrag();
     };
 
+    // Tracks whether the gesture ended normally, so the teardown below knows whether the cleanup
+    // has already run. A `let` rather than a ref because only this closure ever reads it.
+    let settled = false;
+
     function finishPlannedDrag() {
+      settled = true;
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", cancel);
       document.removeEventListener("keydown", keydown);
       document.body.classList.remove("is-dragging-card");
-      const cards = plannedCards();
-      for (const card of cards) {
+      clearGrid();
+      for (const card of plannedCards()) {
+        // The carried card is holding a transform that keeps it under the cursor. It has to go, or
+        // the card would stay parked off to one side of the slot the list says it is in — and the
+        // next gesture would measure its origin from there.
+        card.style.transition = "";
+        card.style.transform = "";
         card.style.zIndex = "";
         card.style.pointerEvents = "";
         delete card.dataset.dragging;
       }
-      const ids = cards.map((card) => card.dataset.plannedId ?? "").filter((id) => id !== "");
+      // The order the user left behind. The list was rearranged as the cards were carried, so the
+      // DOM order is already the arrangement on screen — reading it directly avoids depending on
+      // where the cards happen to have finished their slide.
+      const ids = plannedCards()
+        .map((card) => card.dataset.plannedId ?? "")
+        .filter((id) => id !== "");
       const target = reorderTarget.current;
       setDrag(null);
       if (target === null) return;
@@ -391,8 +614,20 @@ export function PlanEditor(props: PlanEditorProps) {
       document.removeEventListener("pointercancel", cancel);
       document.removeEventListener("keydown", keydown);
       document.body.classList.remove("is-dragging-card");
+      // Tearing down mid-gesture (the Day changed under the pointer) leaves the same debris the
+      // normal finish clears, so the same cleanup runs here rather than a partial copy of it.
+      if (!settled) {
+        clearGrid();
+        for (const card of plannedCards()) {
+          card.style.transition = "";
+          card.style.transform = "";
+          card.style.zIndex = "";
+          card.style.pointerEvents = "";
+          delete card.dataset.dragging;
+        }
+      }
     };
-  }, [draggingPlannedId, onReorderPlannedExercises]);
+  }, [draggingPlannedId, onReorderPlannedExercises, paintGrid, clearGrid]);
 
   function confirmDeletion() {
     const pending = pendingDeletion;
@@ -772,7 +1007,7 @@ export function PlanEditor(props: PlanEditorProps) {
                     </p>
                   </div>
                 ) : (
-                  <div className="ex-list">
+                  <div className="ex-list" ref={listRef} data-dragging-grid={drag === null ? undefined : "true"}>
                     {selectedDay.plannedExercises.map((planned, index) => {
                       const record = progressFor(planned);
                       const latest = record?.recent.at(-1);
