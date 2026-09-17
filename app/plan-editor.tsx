@@ -13,6 +13,7 @@ import {
 import {
   SortableContext,
   arrayMove,
+  horizontalListSortingStrategy,
   rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
@@ -81,6 +82,16 @@ function plannedCards() {
 }
 
 /**
+ * The Day pills in the strip, in DOM order.
+ *
+ * The ＋ chip is deliberately not one of them: it is not a slot, so it gets no outline and no place
+ * in the order the lattice draws.
+ */
+function dayChips() {
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-testid="day-chip"]'));
+}
+
+/**
  * Draws the lattice as `background-image`s rather than as elements: one outline per slot, painted
  * over the whole list. Two reasons it is not a sibling element — an overlay would either swallow
  * the pointer or need `pointer-events:none`, which the accessibility suite reads as a control that
@@ -119,6 +130,36 @@ function gridLayers(boxes: { left: number; top: number; width: number; height: n
     size: boxes.map((box) => `${Math.round(box.width - GRID_INSET * 2)}px ${Math.round(box.height - GRID_INSET * 2)}px`).join(","),
     repeat: boxes.map(() => "no-repeat").join(","),
   };
+}
+
+/**
+ * Paints one outline per box onto `host`, in `host`'s own coordinates.
+ *
+ * A box under a resting item is hidden by it, which is exactly the point: what the lattice is there
+ * to reveal is the slot the item would move into. An empty list paints nothing — there is no slot
+ * to speak of until there is something to put in one. `shown` is what lets a wipe be a no-op when
+ * there is nothing to wipe.
+ */
+function paintLattice(host: HTMLElement, boxes: DOMRect[], shown: { current: boolean }) {
+  if (boxes.length === 0 || boxes.some((box) => box.width <= 0)) return;
+  const hostBox = host.getBoundingClientRect();
+  const layers = gridLayers(
+    boxes.map((box) => ({ left: box.left - hostBox.left, top: box.top - hostBox.top, width: box.width, height: box.height })),
+  );
+  host.style.backgroundImage = layers.image;
+  host.style.backgroundPosition = layers.position;
+  host.style.backgroundSize = layers.size;
+  host.style.backgroundRepeat = layers.repeat;
+  shown.current = true;
+}
+
+function wipeLattice(host: HTMLElement, shown: { current: boolean }) {
+  if (!shown.current) return;
+  host.style.backgroundImage = "";
+  host.style.backgroundPosition = "";
+  host.style.backgroundSize = "";
+  host.style.backgroundRepeat = "";
+  shown.current = false;
 }
 
 /**
@@ -199,6 +240,35 @@ function SortableDayRow({ id, selected, children }: { id: string; selected: bool
   );
 }
 
+/**
+ * One Workout Day in the strip, as a pill that can be picked up and set down elsewhere in the row.
+ *
+ * The same shape and the same reasons as `SortableDayRow`, with one difference: the pill holds two
+ * buttons — the name, and the weekday badge that turns into a bin — so the listeners sit on the
+ * pill rather than on a button that would have to carry them. The distance threshold keeps both
+ * buttons clickable; the role is restated after the attributes so dnd-kit's `role="button"` does
+ * not wrap a button in another one.
+ */
+function SortableDayChip({ id, selected, children }: { id: string; selected: boolean; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <span
+      ref={setNodeRef}
+      className="chip"
+      data-testid="day-chip"
+      data-day-id={id}
+      data-selected={selected ? "true" : undefined}
+      data-dragging={isDragging ? "true" : undefined}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      role="group"
+      {...listeners}
+    >
+      {children}
+    </span>
+  );
+}
+
 function meterBars(recent: ExerciseProgress["recent"]) {
   return recent.map((entry, index) => {
     const state = entry.achievementRate >= 100 ? "on" : entry.achievementRate >= 80 ? "hi" : "lo";
@@ -252,10 +322,15 @@ export function PlanEditor(props: PlanEditorProps) {
   // this is only what the list needs in order to paint its lattice, and what the cards need in order
   // to know that one of them is being carried.
   const [draggingId, setDraggingId] = useState("");
+  // The Day strip carries pills instead of cards, and its lattice is a different picture of a
+  // different list, so it keeps its own flag and its own element.
+  const [draggingDayId, setDraggingDayId] = useState("");
   // The lattice is drawn onto the element rather than through the JSX because it is a picture of
   // where the cards actually are, and that is only knowable once layout has run.
   const listRef = useRef<HTMLDivElement | null>(null);
   const gridShown = useRef(false);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const chipGridShown = useRef(false);
   // A press only becomes a drag once the pointer has travelled far enough. The whole card is the
   // handle — that is what makes it feel picked up rather than grabbed by a corner — so without this
   // every press on the ✎ summary or the 移除 button would start a carry instead of a click.
@@ -283,31 +358,27 @@ export function PlanEditor(props: PlanEditorProps) {
   const paintGrid = useCallback(() => {
     const list = listRef.current;
     if (list === null) return;
-    const cards = plannedCards();
-    if (cards.length === 0) return;
-    const listBox = list.getBoundingClientRect();
-    // The cards are drawn as an outline each: the gaps between them are exactly what the lattice is
-    // there to reveal, and a box under a resting card would be hidden by it.
-    const boxes = cards
-      .map((card) => card.getBoundingClientRect())
-      .map((rect) => ({ left: rect.left - listBox.left, top: rect.top - listBox.top, width: rect.width, height: rect.height }));
-    if (boxes.some((box) => box.width <= 0)) return;
-    const layers = gridLayers(boxes);
-    list.style.backgroundImage = layers.image;
-    list.style.backgroundPosition = layers.position;
-    list.style.backgroundSize = layers.size;
-    list.style.backgroundRepeat = layers.repeat;
-    gridShown.current = true;
+    paintLattice(list, plannedCards().map((card) => card.getBoundingClientRect()), gridShown);
   }, []);
 
   const clearGrid = useCallback(() => {
     const list = listRef.current;
-    if (list === null || !gridShown.current) return;
-    list.style.backgroundImage = "";
-    list.style.backgroundPosition = "";
-    list.style.backgroundSize = "";
-    list.style.backgroundRepeat = "";
-    gridShown.current = false;
+    if (list === null) return;
+    wipeLattice(list, gridShown);
+  }, []);
+
+  // The Day strip paints the same lattice around its own pills, onto its own element: two lists in
+  // two columns of the page, never carried at the same time.
+  const paintChipGrid = useCallback(() => {
+    const strip = stripRef.current;
+    if (strip === null) return;
+    paintLattice(strip, dayChips().map((chip) => chip.getBoundingClientRect()), chipGridShown);
+  }, []);
+
+  const clearChipGrid = useCallback(() => {
+    const strip = stripRef.current;
+    if (strip === null) return;
+    wipeLattice(strip, chipGridShown);
   }, []);
 
   // `selectedPlanId` is owned by the workspace, so it can change without the rail being told
@@ -419,6 +490,36 @@ export function PlanEditor(props: PlanEditorProps) {
     setDraggingId("");
     document.body.classList.remove("is-dragging-card");
     clearGrid();
+  }
+
+  /**
+   * A Day pill has been picked up: the strip's own lattice, for the same reason and on the same
+   * terms as the cards'.
+   */
+  function beginDayStripDrag(event: DragStartEvent) {
+    setDraggingDayId(String(event.active.id));
+    document.body.classList.add("is-dragging-card");
+    paintChipGrid();
+  }
+
+  /** The gesture is over, drop or cancel — and every trace of it belongs to the gesture. */
+  function releaseDayStripDrag() {
+    setDraggingDayId("");
+    document.body.classList.remove("is-dragging-card");
+    clearChipGrid();
+  }
+
+  /**
+   * A Day pill was let go over the strip.
+   *
+   * The order being rearranged is the same one the accordion rearranges — the pills and the rows
+   * are two views of `plan.workoutDays` — so `dropDay` owns the arithmetic for both. Only the
+   * direction differs, and that is the list's strategy to state, not this handler's.
+   */
+  function dropDayPill(event: DragEndEvent) {
+    releaseDayStripDrag();
+    if (selectedPlan === null) return;
+    dropDay(selectedPlan, event);
   }
 
   /**
@@ -653,22 +754,57 @@ export function PlanEditor(props: PlanEditorProps) {
               </div>
             </div>
 
-            <div className="day-strip">
-              {selectedPlan.workoutDays.map((day) => (
-                <button
-                  className="chip"
-                  type="button"
-                  key={day.id}
-                  data-selected={day.id === selectedDay?.id ? "true" : undefined}
-                  onClick={() => selectDay(day.id)}
-                >
-                  {day.name}<span>{weekdayLabel(day.suggestedWeekday)}</span>
-                </button>
-              ))}
-              <button className="chip add" type="button" data-selected={isAddingDay ? "true" : undefined} onClick={() => { resetDayContext(); setIsAddingDay((open) => !open); }}>
-                ＋ 训练日
-              </button>
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={beginDayStripDrag}
+              onDragEnd={dropDayPill}
+              onDragCancel={releaseDayStripDrag}
+            >
+              <SortableContext
+                items={selectedPlan.workoutDays.map((day) => day.id)}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div className="day-strip" ref={stripRef} data-dragging-grid={draggingDayId === "" ? undefined : "true"}>
+                  {selectedPlan.workoutDays.map((day) => (
+                    <SortableDayChip key={day.id} id={day.id} selected={day.id === selectedDay?.id}>
+                      <button className="chip-name" type="button" onClick={() => selectDay(day.id)}>
+                        {day.name}
+                      </button>
+                      {/* The weekday badge doubles as the delete affordance: hover swaps it for a bin. */}
+                      <button
+                        className="chip-drop"
+                        type="button"
+                        disabled={busy}
+                        aria-label={`删除训练日「${day.name}」`}
+                        title={`删除训练日「${day.name}」`}
+                        onClick={() => setPendingDeletion({
+                          kind: "day",
+                          title: `删除「${day.name}」？`,
+                          impact: `这个训练日里的 ${day.plannedExercises.length} 个已安排动作会一起删除。`,
+                          run: () => onDeleteDay(selectedPlan, day),
+                        })}
+                      >
+                        <span className="chip-when">{weekdayLabel(day.suggestedWeekday)}</span>
+                        <svg className="chip-trash" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                          <path
+                            d="M3.6 4.6h8.8M6.6 2.6h2.8M5.1 4.6l.55 8.05c.05.72.65 1.25 1.37 1.25h1.96c.72 0 1.32-.53 1.37-1.25L10.9 4.6M6.8 6.9v4.3M9.2 6.9v4.3"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.25"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </SortableDayChip>
+                  ))}
+                  <button className="chip add" type="button" data-selected={isAddingDay ? "true" : undefined} onClick={() => { resetDayContext(); setIsAddingDay((open) => !open); }}>
+                    ＋ 训练日
+                  </button>
+                </div>
+              </SortableContext>
+            </DndContext>
 
             {isAddingDay && (
               <form className="editor" onSubmit={submitDay}>
@@ -723,19 +859,6 @@ export function PlanEditor(props: PlanEditorProps) {
                         </select>
                       </label>
                       <button className="btn" type="submit" disabled={busy}>保存设置</button>
-                      <button
-                        className="btn danger"
-                        type="button"
-                        disabled={busy}
-                        onClick={() => setPendingDeletion({
-                          kind: "day",
-                          title: `删除「${selectedDay.name}」？`,
-                          impact: `这个训练日里的 ${selectedDay.plannedExercises.length} 个已安排动作会一起删除。`,
-                          run: () => onDeleteDay(selectedPlan, selectedDay),
-                        })}
-                      >
-                        删除训练日
-                      </button>
                     </form>
                   </div>
                 </details>

@@ -245,11 +245,22 @@
 .plan-view .title-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px}
 .plan-view .title-input{max-width:min(520px,100%);border:1px solid rgba(194,219,134,.62);border-radius:8px;background:rgba(0,0,0,.34);padding:2px 8px;color:#fff;font:inherit;font-weight:750;outline:none}
 .plan-view .day-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 6px}
-.plan-view .chip{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid transparent;border-radius:999px;background:rgba(255,255,255,.055);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer}
+.plan-view .chip{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid transparent;border-radius:999px;background:rgba(255,255,255,.055);color:var(--muted);font-size:12px;font-weight:700;user-select:none;cursor:grab;touch-action:none}
 .plan-view .chip:hover{background:rgba(255,255,255,.1);color:#fff}
 .plan-view .chip[data-selected]{background:rgba(194,219,134,.14);box-shadow:inset 0 0 0 1px rgba(194,219,134,.34);color:#e8f4cd}
 .plan-view .chip span{color:var(--faint)}
-.plan-view .chip.add{border:1px dashed rgba(255,255,255,.2);background:transparent;color:var(--faint)}
+.plan-view .chip button{height:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:inherit}
+.plan-view .chip .chip-drop{display:inline-grid;place-items:center;color:var(--faint);cursor:pointer}
+.plan-view .chip .chip-when,.plan-view .chip .chip-trash{grid-area:1/1;transition:opacity .12s var(--ease)}
+.plan-view .chip .chip-trash{opacity:0;color:var(--danger)}
+.plan-view .chip:hover .chip-trash,.plan-view .chip .chip-drop:focus-visible .chip-trash{opacity:1}
+.plan-view .chip:hover .chip-when,.plan-view .chip .chip-drop:focus-visible .chip-when{opacity:0}
+.plan-view .chip .chip-trash svg{display:block;width:14px;height:14px}
+.plan-view .chip[data-dragging]{z-index:40;border-radius:999px;background:rgba(22,25,26,.96);box-shadow:0 16px 38px rgba(0,0,0,.5);will-change:transform}
+.plan-view .chip[data-dragging] .chip-when{opacity:1}
+.plan-view .chip[data-dragging] .chip-trash{opacity:0}
+.plan-view .day-strip:has(.chip[data-dragging]){cursor:grabbing;user-select:none}
+.plan-view .chip.add{border:1px dashed rgba(255,255,255,.2);background:transparent;color:var(--faint);cursor:pointer}
 .plan-view .chip.add[data-selected]{border-style:solid}
 .plan-view .setup{margin-top:20px}
 .plan-view .setup>summary{display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.04);color:var(--muted);font-size:12px;font-weight:750;list-style:none;cursor:pointer}

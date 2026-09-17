@@ -124,6 +124,31 @@ async function dragDayRow(handle: HTMLElement, rows: number) {
 }
 
 /**
+ * The Day pills lie in a row, so their stub reports boxes one pill apart — the axis the strip
+ * arranges along. The vertical stub above would put them all in the same column.
+ */
+const CHIP_SIZE = { width: 120, height: 32 };
+const CHIP_STRIDE = CHIP_SIZE.width + 8;
+
+function stubChipLayout() {
+  const chips = () => screen.getAllByTestId("day-chip");
+  chips().forEach((chip) => {
+    chip.getBoundingClientRect = () => {
+      const index = chips().indexOf(chip);
+      const left = GRID_ORIGIN.left + Math.max(index, 0) * CHIP_STRIDE;
+      return { left, top: GRID_ORIGIN.top, right: left + CHIP_SIZE.width, bottom: GRID_ORIGIN.top + CHIP_SIZE.height, width: CHIP_SIZE.width, height: CHIP_SIZE.height, x: left, y: GRID_ORIGIN.top, toJSON: () => ({}) } as DOMRect;
+    };
+  });
+}
+
+/** Carries a Day pill `slots` pills along the strip (negative for back) and releases it. */
+async function dragDayPill(handle: HTMLElement, slots: number) {
+  const from = handle.getBoundingClientRect();
+  const y = from.top + 4;
+  await pressAndCarry(handle, from.left + 4, y, from.left + 4 + slots * CHIP_STRIDE, y);
+}
+
+/**
  * How far the pointer has to travel before the card is picked up. Mirrors the component's own
  * threshold: the tests have to cross it, not restate what it is.
  */
@@ -181,8 +206,9 @@ describe("PlanEditor", () => {
     renderEditor();
 
     const strip = document.querySelector(".day-strip") as HTMLElement;
-    expect(within(strip).getByRole("button", { name: /推日/ })).toBeTruthy();
-    expect(within(strip).getByRole("button", { name: /拉日/ })).toBeTruthy();
+    // Each chip is a name button plus a delete affordance — match the name exactly, not by substring.
+    expect(within(strip).getByRole("button", { name: "推日" })).toBeTruthy();
+    expect(within(strip).getByRole("button", { name: "拉日" })).toBeTruthy();
     expect(within(strip).getByRole("button", { name: /＋ 训练日/ })).toBeTruthy();
     expect(screen.getAllByTestId("planned-row")).toHaveLength(2);
   });
@@ -194,7 +220,7 @@ describe("PlanEditor", () => {
     // Switch to the empty second Day via the chip strip, then collapse and re-open the plan:
     // the Day must stick instead of snapping back to the first one.
     const strip = document.querySelector(".day-strip") as HTMLElement;
-    await user.click(within(strip).getByRole("button", { name: /拉日/ }));
+    await user.click(within(strip).getByRole("button", { name: "拉日" }));
     expect(screen.queryAllByTestId("planned-row")).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: /力量基础/ }));
@@ -238,6 +264,10 @@ describe("PlanEditor", () => {
     const user = userEvent.setup();
     const handlers = renderEditor();
 
+    // The drag above leaves one press owed: dnd-kit keeps its document listeners live until the
+    // gesture that follows them, and that press never becomes a click. It is spent here so that the
+    // press this test is about is a press.
+    await user.click(document.body);
     await user.click(screen.getByRole("button", { name: /力量基础/ }));
     stubDayLayout();
     expect(screen.getAllByTestId("planned-row")).toHaveLength(2);
@@ -254,7 +284,8 @@ describe("PlanEditor", () => {
     const user = userEvent.setup();
     const handlers = renderEditor();
 
-    await user.click(screen.getByRole("button", { name: "删除训练日" }));
+    // The Day chip's delete affordance lives on the chip itself, not in the settings form.
+    await user.click(screen.getByRole("button", { name: "删除训练日「推日」" }));
     expect(handlers.onDeleteDay).not.toHaveBeenCalled();
 
     const dialog = screen.getByRole("dialog");
@@ -268,7 +299,7 @@ describe("PlanEditor", () => {
     const user = userEvent.setup();
     const handlers = renderEditor();
 
-    await user.click(screen.getByRole("button", { name: "删除训练日" }));
+    await user.click(screen.getByRole("button", { name: "删除训练日「推日」" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "取消" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -466,5 +497,16 @@ describe("PlanEditor", () => {
     fireEvent.pointerUp(document, { clientX: x + DRAG_ACTIVATION_DISTANCE + 2, clientY: y, isPrimary: true, pointerId: 1 });
     await act(async () => { await Promise.resolve(); });
     expect(cards()[0].dataset.dragging).toBeUndefined();
+  });
+
+  it("reorders Workout Days by dragging one pill along the strip", async () => {
+    const handlers = renderEditor();
+
+    // The pills and the accordion rows are two views of the same order, rearranged along different
+    // axes: the strip is a row, so the distance that decides a swap is horizontal.
+    stubChipLayout();
+    await dragDayPill(screen.getAllByTestId("day-chip")[0], 1);
+
+    expect(handlers.onReorderDays).toHaveBeenCalledWith(expect.objectContaining({ id: "plan-1" }), ["day-2", "day-1"]);
   });
 });
