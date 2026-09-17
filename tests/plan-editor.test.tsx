@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -203,5 +203,36 @@ describe("PlanEditor", () => {
     await user.click(screen.getByRole("button", { name: "保存" }));
 
     expect(handlers.onRenamePlan).toHaveBeenCalledWith(expect.objectContaining({ id: "plan-1" }), "推拉腿");
+  });
+
+  it("reorders Planned Exercises by dragging one card onto another", () => {
+    const handlers = renderEditor();
+    const cards = screen.getAllByTestId("planned-row");
+    const transfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+
+    // jsdom has no DataTransfer of its own, so the handlers are handed a stand-in.
+    fireEvent.dragStart(cards[1], { dataTransfer: transfer });
+    fireEvent.dragOver(cards[0], { dataTransfer: transfer });
+    fireEvent.drop(cards[0], { dataTransfer: transfer });
+
+    expect(handlers.onReorderPlannedExercises).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "plan-1" }),
+      expect.objectContaining({ id: "day-1" }),
+      ["planned-2", "planned-1"],
+    );
+  });
+
+  it("does not start a drag from a control inside the card", () => {
+    const handlers = renderEditor();
+    const cards = screen.getAllByTestId("planned-row");
+    const transfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+
+    // Pressing the edit summary selects text inside the card; the card must not hijack that
+    // into a reorder, so the drag never starts and dropping changes nothing.
+    fireEvent.dragStart(within(cards[0]).getByLabelText(/编辑 杠铃深蹲/), { dataTransfer: transfer });
+    fireEvent.drop(cards[1], { dataTransfer: transfer });
+
+    expect(transfer.setData).not.toHaveBeenCalled();
+    expect(handlers.onReorderPlannedExercises).not.toHaveBeenCalled();
   });
 });

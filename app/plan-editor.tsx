@@ -59,6 +59,15 @@ function moved(list: string[], from: number, to: number) {
   return next;
 }
 
+/** Returns a new array with the item at `from` dropped at `to`, or `null` when nothing changes. */
+function reordered(list: string[], from: number, to: number) {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return null;
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
 function meterBars(recent: ExerciseProgress["recent"]) {
   return recent.map((entry, index) => {
     const state = entry.achievementRate >= 100 ? "on" : entry.achievementRate >= 80 ? "hi" : "lo";
@@ -109,6 +118,8 @@ export function PlanEditor(props: PlanEditorProps) {
   const [openRecapId, setOpenRecapId] = useState("");
   const [search, setSearch] = useState("");
   const [pickedExerciseId, setPickedExerciseId] = useState("");
+  const [draggingPlannedId, setDraggingPlannedId] = useState("");
+  const [dropTargetId, setDropTargetId] = useState("");
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
 
   const activePlans = plans.filter((plan) => plan.archivedAt === null);
@@ -195,6 +206,22 @@ export function PlanEditor(props: PlanEditorProps) {
     if (!selectedPlan || !selectedDay) return;
     const next = moved(selectedDay.plannedExercises.map((planned) => planned.id), index, index + delta);
     if (next) void onReorderPlannedExercises(selectedPlan, selectedDay, next);
+  }
+
+  /** Drops the dragged card onto another card's slot, moving the rest along. */
+  function dropPlannedExercise(targetId: string) {
+    const source = draggingPlannedId;
+    setDraggingPlannedId("");
+    setDropTargetId("");
+    if (!selectedPlan || !selectedDay || source === "" || source === targetId) return;
+    const ids = selectedDay.plannedExercises.map((planned) => planned.id);
+    const next = reordered(ids, ids.indexOf(source), ids.indexOf(targetId));
+    if (next) void onReorderPlannedExercises(selectedPlan, selectedDay, next);
+  }
+
+  function endPlannedDrag() {
+    setDraggingPlannedId("");
+    setDropTargetId("");
   }
 
   function confirmDeletion() {
@@ -581,86 +608,113 @@ export function PlanEditor(props: PlanEditorProps) {
                       const latest = record?.recent.at(-1);
                       const openRecap = openRecapId === planned.id;
                       return (
-                        <article className="exercise" data-testid="planned-row" key={planned.id}>
-                          <div className="ex-top">
-                            <div style={{ minWidth: 0 }}>
-                              <h4>{planned.exercise.name}</h4>
-                              <p className="nums">{plannedTarget(planned)}</p>
-                            </div>
-                            <div className="ex-actions">
-                              {sortMode && (
-                                <>
-                                  <button className="btn icon" type="button" disabled={index === 0} aria-label={`上移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, -1)}>↑</button>
-                                  <button className="btn icon" type="button" disabled={index === selectedDay.plannedExercises.length - 1} aria-label={`下移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, 1)}>↓</button>
-                                </>
-                              )}
-                              <details className="inline-edit" open={editingPlannedId === planned.id || undefined}>
-                                <summary
-                                  aria-label={`编辑 ${planned.exercise.name} 的目标`}
-                                  onClick={(event) => {
-                                    // `open` is driven by state, so cancel the native flip to keep the
-                                    // two from fighting (the attribute would win, but only after a flicker).
+                        <article
+                          className="exercise"
+                          data-testid="planned-row"
+                          key={planned.id}
+                          draggable
+                          data-dragging={draggingPlannedId === planned.id ? "true" : undefined}
+                          data-drop-target={dropTargetId === planned.id && draggingPlannedId !== planned.id ? "true" : undefined}
+                          onDragStart={(event) => {
+                            // The whole card is the handle, so a drag that starts on a control
+                            // inside it (text selection in the inputs, a click on a button) would
+                            // otherwise be swallowed by the card.
+                            if (event.target instanceof Element && event.target.closest("input,button,summary,details")) {
+                              event.preventDefault();
+                              return;
+                            }
+                            setDraggingPlannedId(planned.id);
+                            event.dataTransfer.effectAllowed = "move";
+                            // Firefox refuses to start a drag without payload on the transfer.
+                            event.dataTransfer.setData("text/plain", planned.id);
+                          }}
+                          onDragOver={(event) => {
+                            if (draggingPlannedId === "" || draggingPlannedId === planned.id) return;
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                            setDropTargetId(planned.id);
+                          }}
+                          onDragLeave={() => setDropTargetId((current) => (current === planned.id ? "" : current))}
+                          onDrop={(event) => { event.preventDefault(); dropPlannedExercise(planned.id); }}
+                          onDragEnd={endPlannedDrag}
+                        >
+                          <h4>{planned.exercise.name}</h4>
+                          <p className="nums">{plannedTarget(planned)}</p>
+                          <div className="ex-actions">
+                            {sortMode && (
+                              <>
+                                <button className="btn icon" type="button" disabled={index === 0} aria-label={`上移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, -1)}>↑</button>
+                                <button className="btn icon" type="button" disabled={index === selectedDay.plannedExercises.length - 1} aria-label={`下移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, 1)}>↓</button>
+                              </>
+                            )}
+                          </div>
+                          <div className="card-actions">
+                            <details className="inline-edit" open={editingPlannedId === planned.id || undefined}>
+                              <summary
+                                aria-label={`编辑 ${planned.exercise.name} 的目标`}
+                                onClick={(event) => {
+                                  // `open` is driven by state, so cancel the native flip to keep the
+                                  // two from fighting (the attribute would win, but only after a flicker).
+                                  event.preventDefault();
+                                  setEditingPlannedId(editingPlannedId === planned.id ? "" : planned.id);
+                                }}
+                              >
+                                ✎
+                              </summary>
+                              <div className="pop">
+                                <p className="pop-title">编辑目标</p>
+                                <form
+                                  onSubmit={async (event) => {
                                     event.preventDefault();
-                                    setEditingPlannedId(editingPlannedId === planned.id ? "" : planned.id);
+                                    const data = new FormData(event.currentTarget);
+                                    const rawWeight = String(data.get("weight"));
+                                    await onUpdatePlannedExercise(selectedPlan, selectedDay, planned, {
+                                      setCount: Number(data.get("setCount")),
+                                      targetValue: Number(data.get("targetValue")),
+                                      weight: rawWeight === "" ? undefined : Number(rawWeight),
+                                      weightUnit: rawWeight === "" ? undefined : weightUnit,
+                                    });
+                                    setEditingPlannedId("");
                                   }}
                                 >
-                                  ✎
-                                </summary>
-                                <div className="pop">
-                                  <p className="pop-title">编辑目标</p>
-                                  <form
-                                    onSubmit={async (event) => {
-                                      event.preventDefault();
-                                      const data = new FormData(event.currentTarget);
-                                      const rawWeight = String(data.get("weight"));
-                                      await onUpdatePlannedExercise(selectedPlan, selectedDay, planned, {
-                                        setCount: Number(data.get("setCount")),
-                                        targetValue: Number(data.get("targetValue")),
-                                        weight: rawWeight === "" ? undefined : Number(rawWeight),
-                                        weightUnit: rawWeight === "" ? undefined : weightUnit,
-                                      });
-                                      setEditingPlannedId("");
-                                    }}
-                                  >
-                                    <div className="field">
-                                      <span>组数</span>
-                                      <input name="setCount" type="number" min={1} defaultValue={planned.setCount} required />
-                                    </div>
-                                    <div className="field">
-                                      <span>次数 / 秒数</span>
-                                      <input name="targetValue" type="number" min={1} defaultValue={planned.targetValue} required />
-                                    </div>
-                                    <div className="field">
-                                      <span>重量 {weightUnit}（自重留空）</span>
-                                      <input
-                                        name="weight"
-                                        type="number"
-                                        min={0}
-                                        step={0.1}
-                                        defaultValue={weightLabel(planned, weightUnit) ?? ""}
-                                      />
-                                    </div>
-                                    <div className="pop-actions">
-                                      <button className="btn primary sm" type="submit" disabled={busy}>保存目标</button>
-                                      <button className="btn quiet sm" type="button" onClick={() => setEditingPlannedId("")}>取消</button>
-                                    </div>
-                                  </form>
-                                </div>
-                              </details>
-                              <button
-                                className="btn quiet sm"
-                                type="button"
-                                disabled={busy}
-                                onClick={() => setPendingDeletion({
-                                  kind: "planned",
-                                  title: `把「${planned.exercise.name}」移出这个训练日？`,
-                                  impact: "已经记录的训练历史不受影响，之后这个动作不会再出现在这个训练日里。",
-                                  run: () => onDeletePlannedExercise(selectedPlan, selectedDay, planned),
-                                })}
-                              >
-                                移除
-                              </button>
-                            </div>
+                                  <div className="field">
+                                    <span>组数</span>
+                                    <input name="setCount" type="number" min={1} defaultValue={planned.setCount} required />
+                                  </div>
+                                  <div className="field">
+                                    <span>次数 / 秒数</span>
+                                    <input name="targetValue" type="number" min={1} defaultValue={planned.targetValue} required />
+                                  </div>
+                                  <div className="field">
+                                    <span>重量 {weightUnit}（自重留空）</span>
+                                    <input
+                                      name="weight"
+                                      type="number"
+                                      min={0}
+                                      step={0.1}
+                                      defaultValue={weightLabel(planned, weightUnit) ?? ""}
+                                    />
+                                  </div>
+                                  <div className="pop-actions">
+                                    <button className="btn primary sm" type="submit" disabled={busy}>保存目标</button>
+                                    <button className="btn quiet sm" type="button" onClick={() => setEditingPlannedId("")}>取消</button>
+                                  </div>
+                                </form>
+                              </div>
+                            </details>
+                            <button
+                              className="btn quiet sm remove-planned"
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setPendingDeletion({
+                                kind: "planned",
+                                title: `把「${planned.exercise.name}」移出这个训练日？`,
+                                impact: "已经记录的训练历史不受影响，之后这个动作不会再出现在这个训练日里。",
+                                run: () => onDeletePlannedExercise(selectedPlan, selectedDay, planned),
+                              })}
+                            >
+                              移除
+                            </button>
                           </div>
                           <details className="recap" open={openRecap || undefined}>
                             <summary

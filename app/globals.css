@@ -265,14 +265,15 @@
 .plan-view .search-results small{color:var(--faint);font-size:10.5px}
 .plan-view .composer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:12px}
 .plan-view .ex-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:22px}
-.plan-view .exercise{display:flex;flex-direction:column;padding:13px 13px 11px;border:1px solid var(--line);border-radius:16px;background:var(--raise);min-width:0}
-.plan-view .exercise:hover{border-color:rgba(255,255,255,.17)}
-.plan-view .exercise .ex-top{display:flex;flex-direction:column;align-items:stretch;gap:9px;min-width:0}
-.plan-view .exercise h4{margin:0;font-size:14.5px;font-weight:740;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-view .exercise{position:relative;display:flex;flex-direction:column;padding:13px 13px 11px;border:1px solid var(--line);border-radius:16px;background:var(--raise);min-width:0;cursor:grab;transition:border-color 140ms var(--ease),opacity 140ms var(--ease),transform 140ms var(--ease)}
+.plan-view .exercise:hover{border-color:rgba(255,255,255,.17)}.plan-view .exercise:active{cursor:grabbing}.plan-view .exercise[data-dragging]{opacity:.45}.plan-view .exercise[data-drop-target]{border-color:rgba(194,219,134,.62);box-shadow:inset 0 0 0 1px rgba(194,219,134,.32)}
+.plan-view .exercise .card-actions{position:absolute;top:9px;right:9px;display:flex;align-items:center;gap:5px}.plan-view .exercise .remove-planned{padding:3px 8px;font-size:11px;line-height:1.5;opacity:.62}.plan-view .exercise:hover .remove-planned,.plan-view .exercise .remove-planned:focus-visible{opacity:1}
+.plan-view .exercise h4{margin:0;padding-right:86px;font-size:14.5px;font-weight:740;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plan-view .exercise .nums{margin:5px 0 0;color:rgba(255,255,255,.84);font-size:12.5px;font-variant-numeric:tabular-nums}
 .plan-view .exercise .nums b{font-weight:750}
 .plan-view .exercise .nums span{color:var(--faint);margin:0 5px}
 .plan-view .exercise .ex-actions{display:flex;align-items:center;gap:6px;flex:none;margin-top:auto;padding-top:10px}
+.plan-view .exercise .ex-actions:empty{display:none}
 .plan-view .inline-edit{position:relative;display:inline-flex;align-items:center;gap:6px}
 .plan-view .inline-edit>summary{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;color:var(--faint);font-size:13px;list-style:none;cursor:pointer}
 .plan-view .inline-edit>summary::-webkit-details-marker{display:none}
@@ -303,4 +304,4 @@
 .plan-view .dialog .impact{margin-top:16px;padding:12px 14px;border-radius:11px;background:rgba(233,160,149,.08);box-shadow:inset 0 0 0 1px rgba(233,160,149,.18);color:#f1c3bc;font-size:12px;line-height:1.6}
 .plan-view .dialog .dialog-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}
 @media(max-width:1000px){.plan-view .vA-grid{grid-template-columns:1fr}.plan-view .ex-list{grid-template-columns:repeat(3,minmax(0,1fr))}.plan-view .plan-view-head{display:grid;gap:14px;align-items:start}.plan-view .plan-view-head .hint{max-width:none}}
-@media(max-width:700px){.plan-view .ex-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-view .detail{padding:20px 18px}.plan-view .panel{padding:16px}.plan-view .plan-view-head{display:grid;gap:14px;align-items:start}.plan-view .plan-view-head .hint{max-width:none}.plan-view .exercise .ex-top{flex-direction:column;gap:12px}.plan-view .exercise .ex-actions{flex-wrap:wrap}.plan-view .day-actions-head{align-items:flex-start;flex-direction:column}.plan-view .field-row{align-items:stretch;flex-direction:column}.plan-view .detail-head{flex-direction:column;gap:14px}}
+@media(max-width:700px){.plan-view .ex-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-view .detail{padding:20px 18px}.plan-view .panel{padding:16px}.plan-view .plan-view-head{display:grid;gap:14px;align-items:start}.plan-view .plan-view-head .hint{max-width:none}.plan-view .exercise .ex-actions{flex-wrap:wrap}.plan-view .day-actions-head{align-items:flex-start;flex-direction:column}.plan-view .field-row{align-items:stretch;flex-direction:column}.plan-view .detail-head{flex-direction:column;gap:14px}}
