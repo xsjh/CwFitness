@@ -5,6 +5,8 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -13,7 +15,6 @@ import {
 import {
   SortableContext,
   arrayMove,
-  horizontalListSortingStrategy,
   rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
@@ -70,6 +71,54 @@ function weekdayLabel(value: number | null) {
   return value === null ? "不限日期" : weekdays[value];
 }
 
+/**
+ * The seven slots the Day strip is divided into — one per weekday, drawn left to right.
+ *
+ * The slot's position *is* the `suggestedWeekday` it stands for, so landing a pill on one is a
+ * matter of reading the slot rather than of translating between two numbering schemes. That is
+ * also why the strip must never reflow to fewer columns: a second row of seven would make the
+ * picture disagree with the weekday a drop assigns.
+ */
+const SLOT_COUNT = weekdays.length;
+
+const slotId = (index: number) => `weekday-slot-${index}`;
+
+/** The weekday a droppable stands for, or `null` when the id is not one of the strip's slots. */
+function weekdayFromSlot(id: string) {
+  const match = /^weekday-slot-(\d+)$/.exec(id);
+  if (match === null) return null;
+  const index = Number(match[1]);
+  return index >= 0 && index < SLOT_COUNT ? index : null;
+}
+
+/**
+ * Deals the Workout Days into the strip's seven slots.
+ *
+ * A Day that names a weekday sits in that weekday's slot — that is what the weekday is for, and it
+ * is why the strip reads as a week. Everything left over (the ones that name no weekday, and any
+ * that would have had to share a slot) is dealt into whatever slots are still free, in order, so
+ * the strip stays a picture of seven days rather than a list that happens to be seven long.
+ *
+ * A plan is not limited to seven Days, so the surplus spills past the slots and is drawn after
+ * them: a second row is a smaller lie than quietly dropping Days off the end of the strip.
+ */
+function daySlots(days: WorkoutDay[]) {
+  const slots: (WorkoutDay | null)[] = Array.from({ length: SLOT_COUNT }, () => null);
+  const unplaced: WorkoutDay[] = [];
+  for (const day of days) {
+    const at = day.suggestedWeekday;
+    if (at !== null && slots[at] === null) slots[at] = day;
+    else unplaced.push(day);
+  }
+  const spill: WorkoutDay[] = [];
+  for (const day of unplaced) {
+    const free = slots.indexOf(null);
+    if (free === -1) spill.push(day);
+    else slots[free] = day;
+  }
+  return { slots, spill };
+}
+
 function weightLabel(planned: PlannedExercise, weightUnit: "kg" | "lb") {
   return planned.exercise.resistanceType === "WEIGHTED" && planned.weightGrams !== null
     ? weightFromGrams(planned.weightGrams, weightUnit).toFixed(1)
@@ -82,13 +131,13 @@ function plannedCards() {
 }
 
 /**
- * The Day pills in the strip, in DOM order.
+ * The strip's seven slots, in DOM order.
  *
- * The ＋ chip is deliberately not one of them: it is not a slot, so it gets no outline and no place
- * in the order the lattice draws.
+ * Slots rather than pills: the outline is a picture of where a pill can be put down, and an empty
+ * slot is a place to put one just as much as an occupied one is.
  */
-function dayChips() {
-  return Array.from(document.querySelectorAll<HTMLElement>('[data-testid="day-chip"]'));
+function daySlotBoxes() {
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-testid="day-slot"]'));
 }
 
 /**
@@ -241,16 +290,20 @@ function SortableDayRow({ id, selected, children }: { id: string; selected: bool
 }
 
 /**
- * One Workout Day in the strip, as a pill that can be picked up and set down elsewhere in the row.
+ * One Workout Day in the strip, as a pill that can be picked up and set down on a weekday slot.
  *
- * The same shape and the same reasons as `SortableDayRow`, with one difference: the pill holds two
- * buttons — the name, and the weekday badge that turns into a bin — so the listeners sit on the
- * pill rather than on a button that would have to carry them. The distance threshold keeps both
- * buttons clickable; the role is restated after the attributes so dnd-kit's `role="button"` does
- * not wrap a button in another one.
+ * A plain draggable rather than a sortable one: the strip is not a list whose order is up for
+ * negotiation any more, it is seven fixed weekday positions, and where a pill lands decides which
+ * weekday it takes. So there is nothing here for a sorting strategy to compute — the drop target
+ * owns the meaning, and this owns the carrying.
+ *
+ * The pill holds two buttons — the name and the weekday badge that turns into a ✕ — so the
+ * listeners sit on the pill rather than on a button that would have to carry them. The distance
+ * threshold keeps both buttons clickable; the role is restated after the attributes so dnd-kit's
+ * `role="button"` does not wrap a button in another one.
  */
-function SortableDayChip({ id, selected, children }: { id: string; selected: boolean; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+function DraggableDayChip({ id, selected, children }: { id: string; selected: boolean; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
   return (
     <span
       ref={setNodeRef}
@@ -259,13 +312,35 @@ function SortableDayChip({ id, selected, children }: { id: string; selected: boo
       data-day-id={id}
       data-selected={selected ? "true" : undefined}
       data-dragging={isDragging ? "true" : undefined}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Translate.toString(transform) }}
       {...attributes}
       role="group"
       {...listeners}
     >
       {children}
     </span>
+  );
+}
+
+/**
+ * One of the strip's seven weekday positions.
+ *
+ * It exists for the empty case: with no Day in it the slot draws itself dashed, and a drop on it
+ * hands the carried Day that weekday. The children are drawn inside it rather than beside it so
+ * that the outline, the pill and the empty slot all describe the same box.
+ */
+function WeekdaySlot({ index, children }: { index: number; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: slotId(index) });
+  return (
+    <div
+      ref={setNodeRef}
+      className="day-slot"
+      data-testid="day-slot"
+      data-weekday={index}
+      data-over={isOver ? "true" : undefined}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -312,6 +387,10 @@ export function PlanEditor(props: PlanEditorProps) {
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
   const [isAddingDay, setIsAddingDay] = useState(false);
+  // The weekday the new Day is being created into. Empty slots are also create buttons, so the one
+  // that was clicked answers the question — it is the whole reason to click a slot rather than the
+  // panel's button.
+  const [newDayWeekday, setNewDayWeekday] = useState<number | null>(null);
   const [isAddingPlannedExercise, setIsAddingPlannedExercise] = useState(false);
   const [isRenamingPlan, setIsRenamingPlan] = useState(false);
   const [editingPlannedId, setEditingPlannedId] = useState("");
@@ -367,12 +446,13 @@ export function PlanEditor(props: PlanEditorProps) {
     wipeLattice(list, gridShown);
   }, []);
 
-  // The Day strip paints the same lattice around its own pills, onto its own element: two lists in
-  // two columns of the page, never carried at the same time.
+  // The Day strip paints the same lattice over its own slots, onto its own element: two lists in
+  // two columns of the page, never carried at the same time. Its boxes come from the slots rather
+  // than from the pills, so the seven weekday positions show through whether or not they are taken.
   const paintChipGrid = useCallback(() => {
     const strip = stripRef.current;
     if (strip === null) return;
-    paintLattice(strip, dayChips().map((chip) => chip.getBoundingClientRect()), chipGridShown);
+    paintLattice(strip, daySlotBoxes().map((slot) => slot.getBoundingClientRect()), chipGridShown);
   }, []);
 
   const clearChipGrid = useCallback(() => {
@@ -386,8 +466,13 @@ export function PlanEditor(props: PlanEditorProps) {
   // during render so the rail can never disagree with the detail column.
   const openPlanId = expandedPlanId !== "" && expandedPlanId !== selectedPlan?.id ? "" : expandedPlanId;
 
+  // Which Day sits in which weekday slot, derived during render for the same reason as
+  // `openPlanId`: it is a reading of the Days on hand, and storing it would let the two drift.
+  const stripSlots = daySlots(selectedPlan?.workoutDays ?? []);
+
   function resetDayContext() {
     setIsAddingDay(false);
+    setNewDayWeekday(null);
     setIsAddingPlannedExercise(false);
     setEditingPlannedId("");
     setPickedExerciseId("");
@@ -410,6 +495,48 @@ export function PlanEditor(props: PlanEditorProps) {
     setDayByPlan((current) => ({ ...current, [selectedPlan.id]: dayId }));
   }
 
+  /**
+   * One Day of the strip, drawn wherever it ended up.
+   *
+   * A function rather than inline JSX because the surplus Days are drawn outside the slots and
+   * would otherwise be a second copy of the same pill, drifting from the first.
+   */
+  function dayChip(day: WorkoutDay) {
+    if (selectedPlan === null) return null;
+    return (
+      <DraggableDayChip id={day.id} selected={day.id === selectedDay?.id}>
+        <button className="chip-name" type="button" title={day.name} onClick={() => selectDay(day.id)}>
+          {day.name}
+        </button>
+        {/* The weekday badge doubles as the delete affordance: hover swaps it for a ✕. */}
+        <button
+          className="chip-drop"
+          type="button"
+          disabled={busy}
+          aria-label={`删除训练日「${day.name}」`}
+          title={`删除训练日「${day.name}」`}
+          onClick={() => setPendingDeletion({
+            kind: "day",
+            title: `删除「${day.name}」？`,
+            impact: `这个训练日里的 ${day.plannedExercises.length} 个已安排动作会一起删除。`,
+            run: () => onDeleteDay(selectedPlan, day),
+          })}
+        >
+          <span className="chip-when">{weekdayLabel(day.suggestedWeekday)}</span>
+          <svg className="chip-trash" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </DraggableDayChip>
+    );
+  }
+
   async function submitPlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -417,6 +544,18 @@ export function PlanEditor(props: PlanEditorProps) {
     form.reset();
     await onCreatePlan(name);
     setIsCreatingPlan(false);
+  }
+
+  /**
+   * Opens the new-Day dialog, pre-answering the weekday when the click came from a slot.
+   *
+   * `resetDayContext` clears the pre-answer along with the rest of the Day's transient state, so it
+   * has to run first and the weekday it is given is written after it.
+   */
+  function openDayDialog(weekday: number | null) {
+    resetDayContext();
+    setNewDayWeekday(weekday);
+    setIsAddingDay(true);
   }
 
   async function submitDay(event: FormEvent<HTMLFormElement>) {
@@ -428,6 +567,7 @@ export function PlanEditor(props: PlanEditorProps) {
     form.reset();
     await onCreateDay(selectedPlan, String(data.get("name")), weekday === "" ? null : Number(weekday));
     setIsAddingDay(false);
+    setNewDayWeekday(null);
   }
 
   async function submitPlannedExercise(event: FormEvent<HTMLFormElement>) {
@@ -510,16 +650,23 @@ export function PlanEditor(props: PlanEditorProps) {
   }
 
   /**
-   * A Day pill was let go over the strip.
+   * A Day pill was let go over the strip: whichever weekday slot it came down on becomes its
+   * weekday.
    *
-   * The order being rearranged is the same one the accordion rearranges — the pills and the rows
-   * are two views of `plan.workoutDays` — so `dropDay` owns the arithmetic for both. Only the
-   * direction differs, and that is the list's strategy to state, not this handler's.
+   * The strip is the week, so a drop states a weekday rather than a position — there is no order
+   * left to rearrange, only a slot to name. Letting a pill down on the slot it already occupies is
+   * not a change, and neither is a drop that missed every slot: both are left alone rather than
+   * written out, so a gesture that says nothing costs nothing.
    */
   function dropDayPill(event: DragEndEvent) {
     releaseDayStripDrag();
-    if (selectedPlan === null) return;
-    dropDay(selectedPlan, event);
+    const { active, over } = event;
+    if (over === null || selectedPlan === null) return;
+    const weekday = weekdayFromSlot(String(over.id));
+    if (weekday === null) return;
+    const day = selectedPlan.workoutDays.find((item) => item.id === String(active.id));
+    if (day === undefined || day.suggestedWeekday === weekday) return;
+    void onUpdateDay(selectedPlan, day, day.name, weekday);
   }
 
   /**
@@ -761,72 +908,36 @@ export function PlanEditor(props: PlanEditorProps) {
               onDragEnd={dropDayPill}
               onDragCancel={releaseDayStripDrag}
             >
-              <SortableContext
-                items={selectedPlan.workoutDays.map((day) => day.id)}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="day-strip" ref={stripRef} data-dragging-grid={draggingDayId === "" ? undefined : "true"}>
-                  {selectedPlan.workoutDays.map((day) => (
-                    <SortableDayChip key={day.id} id={day.id} selected={day.id === selectedDay?.id}>
-                      <button className="chip-name" type="button" onClick={() => selectDay(day.id)}>
-                        {day.name}
-                      </button>
-                      {/* The weekday badge doubles as the delete affordance: hover swaps it for a bin. */}
+              {/* No SortableContext: the strip is the week, so its order is the calendar's rather
+                  than the user's, and the only thing a drop can say is which weekday a pill takes. */}
+              <div className="day-strip" ref={stripRef} data-dragging-grid={draggingDayId === "" ? undefined : "true"}>
+                {stripSlots.slots.map((day, index) => (
+                  <WeekdaySlot key={slotId(index)} index={index}>
+                    {day === null ? (
                       <button
-                        className="chip-drop"
+                        className="chip add"
                         type="button"
-                        disabled={busy}
-                        aria-label={`删除训练日「${day.name}」`}
-                        title={`删除训练日「${day.name}」`}
-                        onClick={() => setPendingDeletion({
-                          kind: "day",
-                          title: `删除「${day.name}」？`,
-                          impact: `这个训练日里的 ${day.plannedExercises.length} 个已安排动作会一起删除。`,
-                          run: () => onDeleteDay(selectedPlan, day),
-                        })}
+                        aria-label={`新建训练日（${weekdays[index]}）`}
+                        title={`新建训练日（${weekdays[index]}）`}
+                        onClick={() => openDayDialog(index)}
                       >
-                        <span className="chip-when">{weekdayLabel(day.suggestedWeekday)}</span>
-                        <svg className="chip-trash" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                          <path
-                            d="M4 4l8 8M12 4l-8 8"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                          />
-                        </svg>
+                        {/* Which weekday this slot is — until the pointer arrives, at which point the
+                            question "what would a click here do?" is the more useful answer. */}
+                        <span className="slot-when">{weekdays[index]}</span>
+                        <span className="slot-plus" aria-hidden="true">＋</span>
                       </button>
-                    </SortableDayChip>
-                  ))}
-                  <button className="chip add" type="button" data-selected={isAddingDay ? "true" : undefined} onClick={() => { resetDayContext(); setIsAddingDay((open) => !open); }}>
-                    ＋ 训练日
-                  </button>
-                </div>
-              </SortableContext>
+                    ) : (
+                      dayChip(day)
+                    )}
+                  </WeekdaySlot>
+                ))}
+                {/* Past the seventh Day there is no weekday left to hand out. These keep the row's
+                    shape but are not slots: nothing can be dropped on them. */}
+                {stripSlots.spill.map((day) => (
+                  <div className="day-slot" key={day.id}>{dayChip(day)}</div>
+                ))}
+              </div>
             </DndContext>
-
-            {isAddingDay && (
-              <form className="editor" onSubmit={submitDay}>
-                <h4>新建训练日</h4>
-                <div className="field-row">
-                  <label className="field" style={{ flex: "1 1 190px" }}>
-                    <span>训练日名称</span>
-                    <input name="name" placeholder="例如：推日" required maxLength={80} autoFocus />
-                  </label>
-                  <label className="field" style={{ flex: "0 1 150px" }}>
-                    <span>建议星期</span>
-                    <select name="weekday" defaultValue="">
-                      <option value="">不指定</option>
-                      {weekdays.map((label, index) => <option value={index} key={label}>{label}</option>)}
-                    </select>
-                  </label>
-                </div>
-                <div className="editor-foot">
-                  <button className="btn primary" type="submit" disabled={busy}>创建训练日</button>
-                  <button className="btn quiet" type="button" onClick={() => setIsAddingDay(false)}>取消</button>
-                </div>
-              </form>
-            )}
 
             {selectedDay === null ? (
               <p className="empty" style={{ marginTop: 22 }}>
@@ -1086,6 +1197,44 @@ export function PlanEditor(props: PlanEditorProps) {
           </section>
         )}
       </div>
+
+      {/*
+        Creating a Day is a fork in the road rather than an amendment, so it gets the same layer the
+        irreversible actions get instead of a strip of fields pushed into the page. A click anywhere
+        outside cancels it, which is what makes closing it free.
+      */}
+      {isAddingDay && (
+        <section className="layer" role="presentation" onClick={() => setIsAddingDay(false)}>
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="day-dialog-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="section-kicker">新的分组</p>
+            <h2 id="day-dialog-title">新建训练日</h2>
+            <p>训练日把动作归到一组，例如「推日」「拉日」。星期只做建议，随时可以改。</p>
+            <form className="dialog-form" onSubmit={submitDay} data-testid="day-form">
+              <label className="field">
+                <span>训练日名称</span>
+                <input name="name" placeholder="例如：推日" required maxLength={80} autoFocus />
+              </label>
+              <label className="field">
+                <span>建议星期</span>
+                <select name="weekday" defaultValue={newDayWeekday === null ? "" : String(newDayWeekday)}>
+                  <option value="">不指定</option>
+                  {weekdays.map((label, index) => <option value={index} key={label}>{label}</option>)}
+                </select>
+              </label>
+              <div className="dialog-actions">
+                <button className="btn quiet" type="button" onClick={() => setIsAddingDay(false)}>取消</button>
+                <button className="btn primary" type="submit" disabled={busy}>创建训练日</button>
+              </div>
+            </form>
+          </div>
+        </section>
+      )}
 
       {pendingDeletion && (
         <section className="layer" role="presentation" onClick={confirmDeletion}>

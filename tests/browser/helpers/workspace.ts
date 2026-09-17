@@ -104,12 +104,13 @@ export async function createPlanWithDay(page: Page, options: { planName: string;
   await planForm.getByRole("button", { name: "创建计划" }).click();
   await expect(page.locator(".plan-view .plan-name")).toHaveText(options.planName);
 
-  // The new plan becomes the current one, so the day strip offers adding a Workout Day.
-  await page.getByRole("button", { name: "＋ 训练日" }).click();
-  const dayForm = page.locator(".plan-view .editor").filter({ has: page.getByRole("button", { name: "创建训练日" }) });
+  // The new plan becomes the current one, so the day strip is there — seven weekday slots, and an
+  // empty one is the create affordance for its weekday. Either one opens the same dialog.
+  await page.getByRole("button", { name: /^新建训练日（/ }).first().click();
+  const dayForm = page.getByTestId("day-form");
   await dayForm.locator('input[name="name"]').fill(options.dayName);
   await dayForm.getByRole("button", { name: "创建训练日" }).click();
-  await expect(page.locator(".plan-view .chip").filter({ hasText: options.dayName })).toBeVisible();
+  await expect(page.locator('.plan-view [data-testid="day-chip"]').filter({ hasText: options.dayName })).toBeVisible();
 }
 
 export async function addPlannedExercise(

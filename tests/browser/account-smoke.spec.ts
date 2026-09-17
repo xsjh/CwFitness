@@ -45,9 +45,11 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   await page.getByRole("button", { name: "新建计划" }).click();
   await page.getByLabel("新计划名称").fill("浏览器测试计划");
   await page.getByRole("button", { name: "创建计划" }).click();
-  await page.getByRole("button", { name: "＋ 训练日" }).click();
-  await page.getByLabel("训练日名称").fill("测试训练日");
-  await page.getByRole("button", { name: "创建训练日" }).click();
+  // Seven weekday slots, and an empty one is the create affordance: the dialog answers the weekday.
+  await page.getByRole("button", { name: /^新建训练日（/ }).first().click();
+  const dayForm = page.getByTestId("day-form");
+  await dayForm.getByLabel("训练日名称").fill("测试训练日");
+  await dayForm.getByRole("button", { name: "创建训练日" }).click();
 
   await page.getByRole("button", { name: "＋ 添加动作" }).click();
   const composer = page.locator(".plan-view .editor").filter({ has: page.locator(".exercise-search") });

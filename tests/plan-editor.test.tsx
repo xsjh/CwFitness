@@ -124,28 +124,32 @@ async function dragDayRow(handle: HTMLElement, rows: number) {
 }
 
 /**
- * The Day pills lie in a row, so their stub reports boxes one pill apart — the axis the strip
- * arranges along. The vertical stub above would put them all in the same column.
+ * The strip is seven weekday slots in a row, so both a slot and the pill inside it report the same
+ * box — one slot apart from its neighbour. The pill matters as much as the slot: dnd-kit decides
+ * which slot a pill has come down on by comparing the pill's travelling centre against the slots'
+ * centres, so a pill whose box disagreed with its slot's would land somewhere else entirely.
  */
-const CHIP_SIZE = { width: 120, height: 32 };
-const CHIP_STRIDE = CHIP_SIZE.width + 8;
+const SLOT_SIZE = { width: 120, height: 32 };
+const SLOT_STRIDE = SLOT_SIZE.width + 8;
 
-function stubChipLayout() {
-  const chips = () => screen.getAllByTestId("day-chip");
-  chips().forEach((chip) => {
-    chip.getBoundingClientRect = () => {
-      const index = chips().indexOf(chip);
-      const left = GRID_ORIGIN.left + Math.max(index, 0) * CHIP_STRIDE;
-      return { left, top: GRID_ORIGIN.top, right: left + CHIP_SIZE.width, bottom: GRID_ORIGIN.top + CHIP_SIZE.height, width: CHIP_SIZE.width, height: CHIP_SIZE.height, x: left, y: GRID_ORIGIN.top, toJSON: () => ({}) } as DOMRect;
-    };
+function stubSlotLayout() {
+  const box = (index: number): DOMRect => {
+    const left = GRID_ORIGIN.left + index * SLOT_STRIDE;
+    return { left, top: GRID_ORIGIN.top, right: left + SLOT_SIZE.width, bottom: GRID_ORIGIN.top + SLOT_SIZE.height, width: SLOT_SIZE.width, height: SLOT_SIZE.height, x: left, y: GRID_ORIGIN.top, toJSON: () => ({}) } as DOMRect;
+  };
+  const slots = () => screen.getAllByTestId("day-slot");
+  slots().forEach((slot, index) => { slot.getBoundingClientRect = () => box(index); });
+  screen.getAllByTestId("day-chip").forEach((chip) => {
+    const slot = chip.closest('[data-testid="day-slot"]');
+    chip.getBoundingClientRect = () => box(slot === null ? 0 : slots().indexOf(slot as HTMLElement));
   });
 }
 
-/** Carries a Day pill `slots` pills along the strip (negative for back) and releases it. */
+/** Carries a Day pill `slots` slots along the strip (negative for back) and releases it. */
 async function dragDayPill(handle: HTMLElement, slots: number) {
   const from = handle.getBoundingClientRect();
   const y = from.top + 4;
-  await pressAndCarry(handle, from.left + 4, y, from.left + 4 + slots * CHIP_STRIDE, y);
+  await pressAndCarry(handle, from.left + 4, y, from.left + 4 + slots * SLOT_STRIDE, y);
 }
 
 /**
@@ -202,14 +206,22 @@ function pointerMove(clientX: number, clientY: number) {
 }
 
 describe("PlanEditor", () => {
-  it("renders the Day strip and the Planned Exercises of the current Workout Day", () => {
+  it("lays the Day strip out as seven weekday slots, taken or not", () => {
     renderEditor();
 
     const strip = document.querySelector(".day-strip") as HTMLElement;
     // Each chip is a name button plus a delete affordance — match the name exactly, not by substring.
     expect(within(strip).getByRole("button", { name: "推日" })).toBeTruthy();
     expect(within(strip).getByRole("button", { name: "拉日" })).toBeTruthy();
-    expect(within(strip).getByRole("button", { name: /＋ 训练日/ })).toBeTruthy();
+
+    // Seven positions, one per weekday. 推日 names 周一 and sits there; 拉日 names none, so it is
+    // dealt into the first slot still free; the five left over are the create affordances.
+    const slots = screen.getAllByTestId("day-slot");
+    expect(slots).toHaveLength(7);
+    expect(within(slots[1]).getByRole("button", { name: "推日" })).toBeTruthy();
+    expect(within(slots[0]).getByRole("button", { name: "拉日" })).toBeTruthy();
+    expect(within(slots[2]).getByRole("button", { name: "新建训练日（周二）" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^新建训练日（/ })).toHaveLength(5);
     expect(screen.getAllByTestId("planned-row")).toHaveLength(2);
   });
 
@@ -499,14 +511,48 @@ describe("PlanEditor", () => {
     expect(cards()[0].dataset.dragging).toBeUndefined();
   });
 
-  it("reorders Workout Days by dragging one pill along the strip", async () => {
+  it("gives a dropped pill the weekday of the slot it lands on", async () => {
     const handlers = renderEditor();
 
-    // The pills and the accordion rows are two views of the same order, rearranged along different
-    // axes: the strip is a row, so the distance that decides a swap is horizontal.
-    stubChipLayout();
-    await dragDayPill(screen.getAllByTestId("day-chip")[0], 1);
+    // 拉日 names no weekday, so the strip deals it into 周日 — slot 0. Carrying it three slots along
+    // puts it down on 周三, and that is what the drop has to say: a weekday, not a position. There is
+    // no order left for it to rearrange, so the reorder handler must not hear about it at all.
+    stubSlotLayout();
+    await dragDayPill(screen.getAllByTestId("day-chip")[0], 3);
 
-    expect(handlers.onReorderDays).toHaveBeenCalledWith(expect.objectContaining({ id: "plan-1" }), ["day-2", "day-1"]);
+    expect(handlers.onUpdateDay).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "plan-1" }),
+      expect.objectContaining({ id: "day-2" }),
+      "拉日",
+      3,
+    );
+    expect(handlers.onReorderDays).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing when a pill is set back down on the slot it came from", async () => {
+    const handlers = renderEditor();
+
+    // 推日 already sits in 周一 — slot 1 — so carrying it nowhere says nothing, and nothing is worth
+    // a round trip to the server.
+    stubSlotLayout();
+    await dragDayPill(screen.getAllByTestId("day-chip")[1], 0);
+
+    expect(handlers.onUpdateDay).not.toHaveBeenCalled();
+  });
+
+  it("opens the new-Day dialog from an empty slot, having already answered that slot's weekday", async () => {
+    const user = userEvent.setup();
+    const handlers = renderEditor();
+
+    // 周二 is empty in this fixture, so its slot is the create affordance for that weekday.
+    await user.click(screen.getByRole("button", { name: "新建训练日（周二）" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect((within(dialog).getByRole("combobox") as HTMLSelectElement).value).toBe("2");
+
+    await user.type(within(dialog).getByPlaceholderText("例如：推日"), "腿日");
+    await user.click(within(dialog).getByRole("button", { name: "创建训练日" }));
+
+    expect(handlers.onCreateDay).toHaveBeenCalledWith(expect.objectContaining({ id: "plan-1" }), "腿日", 2);
   });
 });
