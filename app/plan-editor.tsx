@@ -1,12 +1,29 @@
 "use client";
 
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   FormEvent,
   useCallback,
-  useEffect,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import { weightFromGrams } from "../lib/weights";
 import type { Exercise, ExerciseProgress, Plan, PlannedExercise, WorkoutDay } from "./workout-types";
@@ -72,96 +89,6 @@ function plannedCards() {
 }
 
 /**
- * The lattice the cards are laid out on, read off the cards themselves rather than off the
- * stylesheet: the list is a grid of equal cells, so the step from one column to the next is the
- * distance between two cards sitting side by side, and likewise down a column.
- *
- * The two steps are not the same number — a cell is as wide as a card plus the gutter, and as tall
- * as a card plus the gutter, and those are different because cards are wider than they are tall —
- * so they are derived separately. `null` means there is only one of that axis on screen, leaving
- * nothing to take a step from.
- *
- * The steps are carried alongside the *rhythm* rather than the origin: where the first cell sits is
- * `columns[0]`, and it is deliberately not folded into the step. A grid whose origin is the
- * viewport's zero is a grid the cells may not sit on at all — the list is inset by the page's own
- * margins, so `left` values are things like 438 and 663, and a snap of `round(643 / 225) * 225` lands
- * on 675, a position no card has ever occupied.
- */
-type Lattice = { columns: number[]; rows: number[]; columnStep: number | null; rowStep: number | null };
-
-function readLattice(rects: (DOMRect | null)[]): Lattice {
-  const positions = (pick: (rect: DOMRect) => number) => {
-    const values = rects.filter((rect): rect is DOMRect => rect !== null).map((rect) => Math.round(pick(rect)));
-    return [...new Set(values)].sort((a, b) => a - b);
-  };
-  const stepOf = (values: number[]) => {
-    if (values.length < 2) return null;
-    // The smallest gap is one cell. Taking the minimum rather than the average keeps the step right
-    // when the pointer moves over a row or column that is only partly filled.
-    let step = Infinity;
-    for (let index = 1; index < values.length; index += 1) step = Math.min(step, values[index] - values[index - 1]);
-    return step > 0 ? step : null;
-  };
-  const columns = positions((rect) => rect.left);
-  const rows = positions((rect) => rect.top);
-  return { columns, rows, columnStep: stepOf(columns), rowStep: stepOf(rows) };
-}
-
-/**
- * Rounds a carried card back onto the lattice. The card follows the cursor, then snaps to the
- * nearest cell, so it always settles in a slot instead of floating in a gap between two.
- *
- * Measured from the first cell rather than from the origin, because the cells are not required to be
- * spaced from zero: `round((643 - 438) / 225) * 225 + 438` is 438, whereas snapping the raw value
- * lands on 675 and puts the card between two cells.
- *
- * An axis with no step to snap to — a single column, or a list short enough to be one row — is left
- * alone rather than snapped to zero, which would drag the card to the origin.
- */
-function snapToGrid(left: number, top: number, lattice: Lattice) {
-  const snap = (value: number, step: number | null, cells: number[]) => {
-    if (step === null || cells.length === 0) return value;
-    const base = cells[0];
-    return Math.round((value - base) / step) * step + base;
-  };
-  return { left: snap(left, lattice.columnStep, lattice.columns), top: snap(top, lattice.rowStep, lattice.rows) };
-}
-
-/** Where a resting card sits, per card, in viewport coordinates and lattice units. */
-type DragOrigin = { left: number; top: number; column: number; row: number };
-
-/**
- * Records where every card rests and which cell of the lattice each one owns. Read once per
- * gesture: from that point on the resting cards only move by `transform`, and their boxes in the
- * DOM keep describing the layout they started in.
- */
-function readOrigins(rects: (DOMRect | null)[], lattice: Lattice) {
-  return rects.map<DragOrigin | null>((rect) => {
-    if (rect === null) return null;
-    return {
-      left: rect.left,
-      top: rect.top,
-      column: lattice.columns.indexOf(Math.round(rect.left)),
-      row: lattice.rows.indexOf(Math.round(rect.top)),
-    };
-  });
-}
-
-/**
- * The card standing in a given lattice cell, or null when the cell is free. This is what the
- * carried card trades places with: they swap, so no card ever leaves the list and the rest keep the
- * cells they were already in.
- */
-function coveredOrigin(origins: (DragOrigin | null)[], skip: number, column: number, row: number) {
-  for (let index = 0; index < origins.length; index += 1) {
-    const origin = origins[index];
-    if (origin === null || index === skip) continue;
-    if (origin.column === column && origin.row === row) return { index, origin };
-  }
-  return null;
-}
-
-/**
  * Draws the lattice as `background-image`s rather than as elements: one outline per slot, painted
  * over the whole list. Two reasons it is not a sibling element — an overlay would either swallow
  * the pointer or need `pointer-events:none`, which the accessibility suite reads as a control that
@@ -183,6 +110,16 @@ function coveredOrigin(origins: (DragOrigin | null)[], skip: number, column: num
 const GRID_STROKE = "rgba(255,255,255,.2)";
 const GRID_INSET = 7;
 
+/**
+ * How far the pointer has to travel before a press becomes a drag.
+ *
+ * The whole card is the handle — that is what makes it feel picked up rather than grabbed by a
+ * corner — so a press has to stay a click by default, or the ✎ summary and the 移除 button would
+ * each open their popover and start a carry on the same gesture. Eight pixels is comfortably under
+ * anything a user aims at on a card this size, and comfortably over the wobble of a click.
+ */
+const DRAG_ACTIVATION_DISTANCE = 8;
+
 function gridLayers(boxes: { left: number; top: number; width: number; height: number }[]) {
   return {
     image: boxes.map(() => `linear-gradient(${GRID_STROKE},${GRID_STROKE})`).join(","),
@@ -190,6 +127,47 @@ function gridLayers(boxes: { left: number; top: number; width: number; height: n
     size: boxes.map((box) => `${Math.round(box.width - GRID_INSET * 2)}px ${Math.round(box.height - GRID_INSET * 2)}px`).join(","),
     repeat: boxes.map(() => "no-repeat").join(","),
   };
+}
+
+/**
+ * One planned exercise, as a card that can be picked up and set down elsewhere in the list.
+ *
+ * This is a component of its own because `useSortable` is a hook, and a hook cannot be called from
+ * inside the `map` that renders the grid. It is deliberately as thin as it can be: it attaches the
+ * ref, the listeners and the transform, and passes the card's contents straight through, so what a
+ * card *looks like* is still decided in exactly one place — the JSX below.
+ *
+ * The listeners go on the whole card rather than on a handle, which is what makes it feel picked up
+ * rather than grabbed by a corner. A press that lands on the ✎ summary or the 移除 button still
+ * behaves, because the sensor does not arm until the pointer has moved `DRAG_ACTIVATION_DISTANCE`.
+ *
+ * `transition` is dnd-kit's: it is a transform transition while a card is making room for another,
+ * and `null` while a card is the one being carried, so the carried card tracks the pointer with no
+ * tween in the way.
+ *
+ * The role is stated after the attributes so that it wins: dnd-kit announces a sortable as
+ * `role="button"`, which would wrap a button — and a summary, and three inputs — in another button.
+ * Screen readers cannot make sense of that nesting, and anything looking up a card's action by role
+ * finds the card too. Keyboard operation does not come from the role: it comes from the listeners,
+ * and the name comes from `aria-roledescription`.
+ */
+function SortableCard({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <article
+      ref={setNodeRef}
+      className="exercise"
+      data-testid="planned-row"
+      data-planned-id={id}
+      data-dragging={isDragging ? "true" : undefined}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      role="group"
+      {...listeners}
+    >
+      {children}
+    </article>
+  );
 }
 
 function meterBars(recent: ExerciseProgress["recent"]) {
@@ -242,22 +220,21 @@ export function PlanEditor(props: PlanEditorProps) {
   const [openRecapId, setOpenRecapId] = useState("");
   const [search, setSearch] = useState("");
   const [pickedExerciseId, setPickedExerciseId] = useState("");
-  // One piece of state drives the whole drag: `id` is the card under the pointer (live from press
-  // to release), and `slot` is the index of the resting card whose lattice cell the carried card is
-  // currently sitting in, or -1 when it is over a cell nobody owns. Nothing reads `slot` from the
-  // render — the swap it drives happens straight in the DOM — so it exists only to keep the last
-  // state of the gesture alive across re-renders.
-  const [drag, setDrag] = useState<{ id: string; slot: number } | null>(null);
-  // The lattice is drawn by an effect rather than by the JSX because it is a picture of where the
-  // cards actually are, and that is only knowable once layout has run.
+  // Which card is in the air, for as long as the gesture lasts. The drag itself belongs to dnd-kit;
+  // this is only what the list needs in order to paint its lattice, and what the cards need in order
+  // to know that one of them is being carried.
+  const [draggingId, setDraggingId] = useState("");
+  // The lattice is drawn onto the element rather than through the JSX because it is a picture of
+  // where the cards actually are, and that is only knowable once layout has run.
   const listRef = useRef<HTMLDivElement | null>(null);
   const gridShown = useRef(false);
-  // Read inside the drag effect but written by every press, so it lives in a ref: re-rendering on
-  // each pointer move would make the card lag behind the cursor.
-  const pointerAt = useRef({ x: 0, y: 0 });
-  // The drag effect is only torn down on pointer-up, so it holds a stale `selectedDay` from the
-  // moment the gesture began. Reading the live pair from a ref keeps the committed order correct.
-  const reorderTarget = useRef<{ plan: Plan; day: WorkoutDay } | null>(null);
+  // A press only becomes a drag once the pointer has travelled far enough. The whole card is the
+  // handle — that is what makes it feel picked up rather than grabbed by a corner — so without this
+  // every press on the ✎ summary or the 移除 button would start a carry instead of a click.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
 
   const activePlans = plans.filter((plan) => plan.archivedAt === null);
@@ -267,13 +244,6 @@ export function PlanEditor(props: PlanEditorProps) {
     ?? selectedPlan?.workoutDays[0]
     ?? null;
   const progressFor = (planned: PlannedExercise) => progress.find((item) => item.plannedExerciseId === planned.id);
-  // The drag effect holds whatever `selectedDay` was when the gesture began, so it reads the pair
-  // it should commit against from here instead. An effect rather than an assignment during render,
-  // because a render can be discarded and this has to happen exactly once per committed render.
-  useEffect(() => {
-    reorderTarget.current = selectedPlan !== null && selectedDay !== null ? { plan: selectedPlan, day: selectedDay } : null;
-  }, [selectedPlan, selectedDay]);
-
   // The lattice lives only for the length of a gesture: painted when a card is picked up, wiped
   // when it is let go. It is written straight to the element instead of through `style` in the
   // JSX on purpose — the boxes it draws come from layout, so putting it in the JSX would mean
@@ -325,7 +295,7 @@ export function PlanEditor(props: PlanEditorProps) {
     setSearch("");
     // A gesture that never got its pointer-up (the Day was switched from the keyboard, or the list
     // was rebuilt under it) would otherwise leave the card frozen in its carried state.
-    setDrag(null);
+    setDraggingId("");
   }
 
   function selectPlan(planId: string) {
@@ -394,240 +364,50 @@ export function PlanEditor(props: PlanEditorProps) {
   }
 
   /**
-   * Starts a press-to-drag on a card. Native HTML5 drag is deliberately avoided here: its drag
-   * image is browser-drawn and lags the pointer at the OS cursor rate, so the card cannot be made
-   * to track the mouse. Moving the element itself is also what lets the siblings be measured and
-   * rearranged live, since the DOM order is then always the arrangement on screen.
+   * A card has been picked up: the gesture is live, and the lattice comes out.
+   *
+   * The lattice is painted here, before anything has moved, because it is a picture of the resting
+   * layout — once dnd-kit starts translating cards, the boxes it would measure are the ones already
+   * in flight.
    */
-  function beginPlannedDrag(event: ReactPointerEvent<HTMLElement>, plannedId: string) {
-    // The whole card is the handle, so a press that lands on a control inside it has to stay a
-    // click — otherwise a text selection in an input would start a drag.
-    if (event.button !== 0) return;
-    if (event.target instanceof Element && event.target.closest("input,button,summary,details")) return;
-    // A press would normally start a text selection, which fights the drag for the pointer.
-    event.preventDefault();
-    setDrag({ id: plannedId, slot: -1 });
+  function beginPlannedDrag(event: DragStartEvent) {
+    setDraggingId(String(event.active.id));
+    document.body.classList.add("is-dragging-card");
+    paintGrid();
   }
 
-  const draggingPlannedId = drag?.id ?? "";
+  /**
+   * The gesture is over, whether it ended in a drop or in a cancellation. Every trace a drag leaves
+   * — the raised cursor, the lattice, the card held in the air — belongs to the gesture rather than
+   * to its outcome, so both endings clear the same things.
+   */
+  function releasePlannedDrag() {
+    setDraggingId("");
+    document.body.classList.remove("is-dragging-card");
+    clearGrid();
+  }
 
-  // The listeners sit on the document rather than the card because once the pointer starts moving
-  // it leaves the card almost immediately, and a re-render must not interrupt the capture.
-  useEffect(() => {
-    if (draggingPlannedId === "") return;
-    const cards = plannedCards();
-    const sourceIndex = cards.findIndex((card) => card.dataset.plannedId === draggingPlannedId);
-    if (sourceIndex === -1) return;
-    const source = cards[sourceIndex];
-
-    const rects = cards.map((card) => card.getBoundingClientRect());
-    const origin = rects[sourceIndex];
-    const grabX = pointerAt.current.x - origin.left;
-    const grabY = pointerAt.current.y - origin.top;
-    // The card is positioned against its nearest *positioned* ancestor, which is not the grid it
-    // sits in, so `offsetLeft` cannot be used to convert viewport coordinates into a transform.
-    // Instead track the box the card is resting in, in viewport space, and let the delta from it be
-    // the transform. It is reassigned whenever the card trades cells, because the DOM order is
-    // rearranged as it goes and the box it belongs to goes with it.
-    let restLeft = origin.left;
-    let restTop = origin.top;
-    const lattice = readLattice(rects);
-    // Resting cards are only ever moved by `transform`, so the boxes captured here keep describing
-    // the lattice for the whole gesture: the snap and the swap both measure against these rather
-    // than against the live DOM, where a card in flight would report where the pointer put it.
-    const origins = readOrigins(rects, lattice);
-    // Applied once so that the moves below, which read layout, are not measured against a stale
-    // midpoint. From here the card is driven purely by `transform`, which never reflows the list.
-    source.style.width = `${origin.width}px`;
-    source.style.height = `${origin.height}px`;
-    document.body.classList.add("is-dragging-card");
-    // Painted immediately rather than on the next frame: the boxes just measured are the ones the
-    // whole gesture resolves against, and a frame's delay invites the effect to be torn down by the
-    // re-render the press causes, taking the pending paint with it.
-    paintGrid();
-
-    /** The box a lattice cell stands for, in viewport coordinates. */
-    const slotBox = (column: number, row: number) => {
-      const left = lattice.columns[column];
-      const top = lattice.rows[row];
-      if (left === undefined || top === undefined) return null;
-      return { left, top };
-    };
-
-    /**
-     * Slides a resting card out of the cell it is losing, into the one being traded to it.
-     *
-     * Its DOM position is not touched: a card that has been pushed aside is still in the same place
-     * in the list — it has only been given the carried card's cell to sit in — so a transform is all
-     * that is needed, and the list never reflows mid-gesture.
-     *
-     * The slide is a transform that is immediately retracted: the offset puts the card back over
-     * its old cell for one frame, and clearing it lets the transition carry the card across.
-     */
-    const slideInto = (card: HTMLElement, column: number, row: number) => {
-      const to = slotBox(column, row);
-      if (to === null) return;
-      const at = card.getBoundingClientRect();
-      const dx = Math.round(at.left - to.left);
-      const dy = Math.round(at.top - to.top);
-      if (dx === 0 && dy === 0) return;
-      card.style.transition = "none";
-      card.style.transform = `translate3d(${dx}px,${dy}px,0)`;
-      // The offset only exists to be animated away, so it is cleared on the next frame; the browser
-      // has by then painted the card over its old cell and will tween from there.
-      requestAnimationFrame(() => {
-        card.style.transition = "transform 160ms var(--ease)";
-        card.style.transform = "";
-      });
-    };
-
-    /**
-     * Puts the carried card where the pointer is asking for it, given where it is currently resting.
-     *
-     * Factored out because it has to be said twice: once as the pointer moves, and again the instant
-     * the card trades cells — the trade changes which box the card rests in, and the transform the
-     * card is already wearing was measured against the box it just left. Saying it a second time
-     * settles the card onto the new cell in the same frame, instead of leaving it a cell's worth of
-     * pixels off until the pointer happens to move again.
-     */
-    const placeCarried = (card: HTMLElement, wanted: { left: number; top: number }) => {
-      card.style.transition = "none";
-      card.style.transform = `translate3d(${Math.round(wanted.left - restLeft)}px,${Math.round(wanted.top - restTop)}px,0)`;
-    };
-
-    const move = (moveEvent: PointerEvent) => {
-      pointerAt.current = { x: moveEvent.clientX, y: moveEvent.clientY };
-      const card = plannedCards().find((item) => item.dataset.plannedId === draggingPlannedId);
-      if (card === undefined) return;
-      // Suppress the transition for the duration of the move. The card's own entrance transition
-      // would otherwise turn it into a slow-following shape trailing a dozen pixels behind the
-      // cursor, and its `transitionend` would land mid-gesture and force a re-render.
-      card.style.transition = "none";
-      // The card rides the cursor, and the position it is riding to is rounded onto the lattice.
-      // Snapping the destination rather than the transform is what keeps the card under the
-      // pointer's grab point: the grid moves in whole cells, so the offset from the cursor to the
-      // card is the same at every stop.
-      const wanted = snapToGrid(moveEvent.clientX - grabX, moveEvent.clientY - grabY, lattice);
-      placeCarried(card, wanted);
-      card.style.zIndex = "40";
-      card.dataset.dragging = "true";
-      // Let the hit-test fall through to the cards underneath, so the pointer can always be
-      // matched against a real resting card instead of the one being carried.
-      card.style.pointerEvents = "none";
-
-      // Which cell of the lattice the card is floating over: the cell it came from, plus however
-      // many whole cells it has been carried. Naming it this way means the swap can be resolved
-      // without a second measurement the carried card would only spoil.
-      const own = origins[sourceIndex];
-      const moveX = own === null || lattice.columnStep === null ? 0 : Math.round((wanted.left - own.left) / lattice.columnStep);
-      const moveY = own === null || lattice.rowStep === null ? 0 : Math.round((wanted.top - own.top) / lattice.rowStep);
-      if (own !== null) {
-        const over = { column: own.column + moveX, row: own.row + moveY };
-        // The cell the carried card is over belongs to whichever card stands there, so the two
-        // trade places: the neighbour takes the carried card's cell and the carried card takes the
-        // neighbour's. Only acting when the cell changes, and not on every pixel, keeps this to one
-        // swap per cell crossed.
-        const target = coveredOrigin(origins, sourceIndex, over.column, over.row);
-        if (target === null) return;
-        // The list is reordered to match, because the DOM order is what gets committed when the
-        // gesture ends: the carried card steps into the neighbour's place and everything between
-        // them shifts up. Only the two cards that changed cells are animated; the ones that merely
-        // shifted an index are left where they are, so the movement reads as a trade.
-        const list = card.parentElement;
-        if (list !== null) {
-          const held = card;
-          held.remove();
-          list.insertBefore(held, cards[target.index]);
-        }
-        slideInto(cards[target.index], own.column, own.row);
-        // The carried card has just been re-inserted elsewhere in the list, so the box it rests in
-        // has changed. The transform it is wearing is expressed against the old box, so it is
-        // rewritten against the new one in the same breath — otherwise the card would snap back to
-        // the slot it visually left, and stay there until the pointer moved again.
-        const landed = slotBox(over.column, over.row);
-        if (landed !== null) {
-          restLeft = landed.left;
-          restTop = landed.top;
-          placeCarried(card, wanted);
-        }
-        // The two cards have changed cells, so the origin table follows them or the next move
-        // would measure against cells that no longer hold anyone.
-        origins[sourceIndex] = target.origin;
-        origins[target.index] = own;
-        // The outlines are the cells, and the cells are the same ones — but the card animating out
-        // of a cell is still sitting in it for the length of the slide, so the lattice is redrawn
-        // only after that has run its course.
-        window.setTimeout(paintGrid, 170);
-      }
-    };
-
-    const up = () => finishPlannedDrag();
-    const cancel = () => finishPlannedDrag();
-    const keydown = (keyEvent: KeyboardEvent) => {
-      if (keyEvent.key === "Escape") finishPlannedDrag();
-    };
-
-    // Tracks whether the gesture ended normally, so the teardown below knows whether the cleanup
-    // has already run. A `let` rather than a ref because only this closure ever reads it.
-    let settled = false;
-
-    function finishPlannedDrag() {
-      settled = true;
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", up);
-      document.removeEventListener("pointercancel", cancel);
-      document.removeEventListener("keydown", keydown);
-      document.body.classList.remove("is-dragging-card");
-      clearGrid();
-      for (const card of plannedCards()) {
-        // The carried card is holding a transform that keeps it under the cursor. It has to go, or
-        // the card would stay parked off to one side of the slot the list says it is in — and the
-        // next gesture would measure its origin from there.
-        card.style.transition = "";
-        card.style.transform = "";
-        card.style.zIndex = "";
-        card.style.pointerEvents = "";
-        delete card.dataset.dragging;
-      }
-      // The order the user left behind. The list was rearranged as the cards were carried, so the
-      // DOM order is already the arrangement on screen — reading it directly avoids depending on
-      // where the cards happen to have finished their slide.
-      const ids = plannedCards()
-        .map((card) => card.dataset.plannedId ?? "")
-        .filter((id) => id !== "");
-      const target = reorderTarget.current;
-      setDrag(null);
-      if (target === null) return;
-      // A gesture that never displaced anything should not spend a request.
-      if (ids.join("\u0000") === target.day.plannedExercises.map((planned) => planned.id).join("\u0000")) return;
-      void onReorderPlannedExercises(target.plan, target.day, ids);
-    }
-
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", up);
-    document.addEventListener("pointercancel", cancel);
-    document.addEventListener("keydown", keydown);
-
-    return () => {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", up);
-      document.removeEventListener("pointercancel", cancel);
-      document.removeEventListener("keydown", keydown);
-      document.body.classList.remove("is-dragging-card");
-      // Tearing down mid-gesture (the Day changed under the pointer) leaves the same debris the
-      // normal finish clears, so the same cleanup runs here rather than a partial copy of it.
-      if (!settled) {
-        clearGrid();
-        for (const card of plannedCards()) {
-          card.style.transition = "";
-          card.style.transform = "";
-          card.style.zIndex = "";
-          card.style.pointerEvents = "";
-          delete card.dataset.dragging;
-        }
-      }
-    };
-  }, [draggingPlannedId, onReorderPlannedExercises, paintGrid, clearGrid]);
+  /**
+   * A card was let go over the grid.
+   *
+   * dnd-kit reports which card was lifted and which one it came to rest on, and leaves the DOM
+   * alone — it only animates the cards toward where they are going. So the new order is derived
+   * from those two ids rather than read back out of the DOM, and the array the cards are rendered
+   * from is the thing that moves. `arrayMove` is the library's own, so the two cannot disagree
+   * about what "moving A onto B" means — the reading that has to be right is the same one the
+   * animation was already drawn from.
+   */
+  function dropPlannedExercise(event: DragEndEvent) {
+    releasePlannedDrag();
+    const { active, over } = event;
+    if (over === null || active.id === over.id) return;
+    if (selectedPlan === null || selectedDay === null) return;
+    const ids = selectedDay.plannedExercises.map((planned) => planned.id);
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+    void onReorderPlannedExercises(selectedPlan, selectedDay, arrayMove(ids, from, to));
+  }
 
   function confirmDeletion() {
     const pending = pendingDeletion;
@@ -1007,135 +787,138 @@ export function PlanEditor(props: PlanEditorProps) {
                     </p>
                   </div>
                 ) : (
-                  <div className="ex-list" ref={listRef} data-dragging-grid={drag === null ? undefined : "true"}>
-                    {selectedDay.plannedExercises.map((planned, index) => {
-                      const record = progressFor(planned);
-                      const latest = record?.recent.at(-1);
-                      const openRecap = openRecapId === planned.id;
-                      return (
-                        <article
-                          className="exercise"
-                          data-testid="planned-row"
-                          key={planned.id}
-                          data-planned-id={planned.id}
-                          data-dragging={draggingPlannedId === planned.id ? "true" : undefined}
-                          onPointerDown={(event) => {
-                            pointerAt.current = { x: event.clientX, y: event.clientY };
-                            beginPlannedDrag(event, planned.id);
-                          }}
-                        >
-                          <h4>{planned.exercise.name}</h4>
-                          <p className="nums">{plannedTarget(planned)}</p>
-                          <div className="ex-actions">
-                            {sortMode && (
-                              <>
-                                <button className="btn icon" type="button" disabled={index === 0} aria-label={`上移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, -1)}>↑</button>
-                                <button className="btn icon" type="button" disabled={index === selectedDay.plannedExercises.length - 1} aria-label={`下移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, 1)}>↓</button>
-                              </>
-                            )}
-                          </div>
-                          <div className="card-actions">
-                            <details className="inline-edit" open={editingPlannedId === planned.id || undefined}>
-                              <summary
-                                aria-label={`编辑 ${planned.exercise.name} 的目标`}
-                                onClick={(event) => {
-                                  // `open` is driven by state, so cancel the native flip to keep the
-                                  // two from fighting (the attribute would win, but only after a flicker).
-                                  event.preventDefault();
-                                  setEditingPlannedId(editingPlannedId === planned.id ? "" : planned.id);
-                                }}
-                              >
-                                ✎
-                              </summary>
-                              <div className="pop">
-                                <p className="pop-title">编辑目标</p>
-                                <form
-                                  onSubmit={async (event) => {
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={beginPlannedDrag}
+                    onDragEnd={dropPlannedExercise}
+                    onDragCancel={releasePlannedDrag}
+                  >
+                    <SortableContext
+                      items={selectedDay.plannedExercises.map((planned) => planned.id)}
+                      strategy={rectSortingStrategy}
+                    >
+                      <div className="ex-list" ref={listRef} data-dragging-grid={draggingId === "" ? undefined : "true"}>
+                        {selectedDay.plannedExercises.map((planned, index) => {
+                          const record = progressFor(planned);
+                          const latest = record?.recent.at(-1);
+                          const openRecap = openRecapId === planned.id;
+                          return (
+                            <SortableCard key={planned.id} id={planned.id}>
+                              <h4>{planned.exercise.name}</h4>
+                              <p className="nums">{plannedTarget(planned)}</p>
+                              <div className="ex-actions">
+                                {sortMode && (
+                                  <>
+                                    <button className="btn icon" type="button" disabled={index === 0} aria-label={`上移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, -1)}>↑</button>
+                                    <button className="btn icon" type="button" disabled={index === selectedDay.plannedExercises.length - 1} aria-label={`下移 ${planned.exercise.name}`} onClick={() => movePlannedExercise(index, 1)}>↓</button>
+                                  </>
+                                )}
+                              </div>
+                              <div className="card-actions">
+                                <details className="inline-edit" open={editingPlannedId === planned.id || undefined}>
+                                  <summary
+                                    aria-label={`编辑 ${planned.exercise.name} 的目标`}
+                                    onClick={(event) => {
+                                      // `open` is driven by state, so cancel the native flip to keep the
+                                      // two from fighting (the attribute would win, but only after a flicker).
+                                      event.preventDefault();
+                                      setEditingPlannedId(editingPlannedId === planned.id ? "" : planned.id);
+                                    }}
+                                  >
+                                    ✎
+                                  </summary>
+                                  <div className="pop">
+                                    <p className="pop-title">编辑目标</p>
+                                    <form
+                                      onSubmit={async (event) => {
+                                        event.preventDefault();
+                                        const data = new FormData(event.currentTarget);
+                                        const rawWeight = String(data.get("weight"));
+                                        await onUpdatePlannedExercise(selectedPlan, selectedDay, planned, {
+                                          setCount: Number(data.get("setCount")),
+                                          targetValue: Number(data.get("targetValue")),
+                                          weight: rawWeight === "" ? undefined : Number(rawWeight),
+                                          weightUnit: rawWeight === "" ? undefined : weightUnit,
+                                        });
+                                        setEditingPlannedId("");
+                                      }}
+                                    >
+                                      <div className="field">
+                                        <span>组数</span>
+                                        <input name="setCount" type="number" min={1} defaultValue={planned.setCount} required />
+                                      </div>
+                                      <div className="field">
+                                        <span>次数 / 秒数</span>
+                                        <input name="targetValue" type="number" min={1} defaultValue={planned.targetValue} required />
+                                      </div>
+                                      <div className="field">
+                                        <span>重量 {weightUnit}（自重留空）</span>
+                                        <input
+                                          name="weight"
+                                          type="number"
+                                          min={0}
+                                          step={0.1}
+                                          defaultValue={weightLabel(planned, weightUnit) ?? ""}
+                                        />
+                                      </div>
+                                      <div className="pop-actions">
+                                        <button className="btn primary sm" type="submit" disabled={busy}>保存目标</button>
+                                        <button className="btn quiet sm" type="button" onClick={() => setEditingPlannedId("")}>取消</button>
+                                      </div>
+                                    </form>
+                                  </div>
+                                </details>
+                                <button
+                                  className="btn quiet sm remove-planned"
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => setPendingDeletion({
+                                    kind: "planned",
+                                    title: `把「${planned.exercise.name}」移出这个训练日？`,
+                                    impact: "已经记录的训练历史不受影响，之后这个动作不会再出现在这个训练日里。",
+                                    run: () => onDeletePlannedExercise(selectedPlan, selectedDay, planned),
+                                  })}
+                                >
+                                  移除
+                                </button>
+                              </div>
+                              <details className="recap" open={openRecap || undefined}>
+                                <summary
+                                  onClick={(event) => {
                                     event.preventDefault();
-                                    const data = new FormData(event.currentTarget);
-                                    const rawWeight = String(data.get("weight"));
-                                    await onUpdatePlannedExercise(selectedPlan, selectedDay, planned, {
-                                      setCount: Number(data.get("setCount")),
-                                      targetValue: Number(data.get("targetValue")),
-                                      weight: rawWeight === "" ? undefined : Number(rawWeight),
-                                      weightUnit: rawWeight === "" ? undefined : weightUnit,
-                                    });
-                                    setEditingPlannedId("");
+                                    setOpenRecapId(openRecap ? "" : planned.id);
                                   }}
                                 >
-                                  <div className="field">
-                                    <span>组数</span>
-                                    <input name="setCount" type="number" min={1} defaultValue={planned.setCount} required />
-                                  </div>
-                                  <div className="field">
-                                    <span>次数 / 秒数</span>
-                                    <input name="targetValue" type="number" min={1} defaultValue={planned.targetValue} required />
-                                  </div>
-                                  <div className="field">
-                                    <span>重量 {weightUnit}（自重留空）</span>
-                                    <input
-                                      name="weight"
-                                      type="number"
-                                      min={0}
-                                      step={0.1}
-                                      defaultValue={weightLabel(planned, weightUnit) ?? ""}
-                                    />
-                                  </div>
-                                  <div className="pop-actions">
-                                    <button className="btn primary sm" type="submit" disabled={busy}>保存目标</button>
-                                    <button className="btn quiet sm" type="button" onClick={() => setEditingPlannedId("")}>取消</button>
-                                  </div>
-                                </form>
-                              </div>
-                            </details>
-                            <button
-                              className="btn quiet sm remove-planned"
-                              type="button"
-                              disabled={busy}
-                              onClick={() => setPendingDeletion({
-                                kind: "planned",
-                                title: `把「${planned.exercise.name}」移出这个训练日？`,
-                                impact: "已经记录的训练历史不受影响，之后这个动作不会再出现在这个训练日里。",
-                                run: () => onDeletePlannedExercise(selectedPlan, selectedDay, planned),
-                              })}
-                            >
-                              移除
-                            </button>
-                          </div>
-                          <details className="recap" open={openRecap || undefined}>
-                            <summary
-                              onClick={(event) => {
-                                event.preventDefault();
-                                setOpenRecapId(openRecap ? "" : planned.id);
-                              }}
-                            >
-                              {record === undefined || latest === undefined ? (
-                                <span className="faint">还没有完成记录</span>
-                              ) : (
-                                <>
-                                  最近 {latest.achievementRate}%
-                                  <span className="meter" style={{ marginLeft: 8 }}>{meterBars(record.recent)}</span>
-                                </>
-                              )}
-                            </summary>
-                            <div className="recap-body">
-                              <ul>
-                                {record === undefined || record.recent.length === 0 ? (
-                                  <li><span>这个动作还没有完成的训练记录。</span></li>
-                                ) : [...record.recent].reverse().map((entry, index) => (
-                                  <li key={`${entry.date}-${index}`}>
-                                    <span>{entry.date.slice(5)}</span>
-                                    <span>达成 {entry.achievementRate}%{entry.achievementRate >= 100 ? " · 达标" : ""}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                              {record?.suggestion ? <p className="tip">进阶建议：{record.suggestion}</p> : null}
-                            </div>
-                          </details>
-                        </article>
-                      );
-                    })}
-                  </div>
+                                  {record === undefined || latest === undefined ? (
+                                    <span className="faint">还没有完成记录</span>
+                                  ) : (
+                                    <>
+                                      最近 {latest.achievementRate}%
+                                      <span className="meter" style={{ marginLeft: 8 }}>{meterBars(record.recent)}</span>
+                                    </>
+                                  )}
+                                </summary>
+                                <div className="recap-body">
+                                  <ul>
+                                    {record === undefined || record.recent.length === 0 ? (
+                                      <li><span>这个动作还没有完成的训练记录。</span></li>
+                                    ) : [...record.recent].reverse().map((entry, index) => (
+                                      <li key={`${entry.date}-${index}`}>
+                                        <span>{entry.date.slice(5)}</span>
+                                        <span>达成 {entry.achievementRate}%{entry.achievementRate >= 100 ? " · 达标" : ""}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  {record?.suggestion ? <p className="tip">进阶建议：{record.suggestion}</p> : null}
+                                </div>
+                              </details>
+                            </SortableCard>
+                          );
+                        })}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
 
                 <div className="day-cta">
