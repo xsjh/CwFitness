@@ -81,6 +81,15 @@ function weekdayLabel(value: number | null) {
  */
 const SLOT_COUNT = weekdays.length;
 
+/**
+ * How long a Workout Day name may be.
+ *
+ * The pill has a fixed width range and spends part of it on the weekday badge, so only a handful of
+ * characters survive to be read; this is the cap that keeps a name inside the strip rather than
+ * letting the pill's own ellipsis be the only thing between a name and the layout.
+ */
+const DAY_NAME_MAX_LENGTH = 6;
+
 const slotId = (index: number) => `weekday-slot-${index}`;
 
 /** The weekday a droppable stands for, or `null` when the id is not one of the strip's slots. */
@@ -133,8 +142,8 @@ function plannedCards() {
 /**
  * The strip's seven slots, in DOM order.
  *
- * Slots rather than pills: the outline is a picture of where a pill can be put down, and an empty
- * slot is a place to put one just as much as an occupied one is.
+ * Slots rather than pills because an empty slot is a place to put one just as much as an occupied
+ * one is. What gets measured for an outline is the frame inside each slot, which exists either way.
  */
 function daySlotBoxes() {
   return Array.from(document.querySelectorAll<HTMLElement>('[data-testid="day-slot"]'));
@@ -447,12 +456,19 @@ export function PlanEditor(props: PlanEditorProps) {
   }, []);
 
   // The Day strip paints the same lattice over its own slots, onto its own element: two lists in
-  // two columns of the page, never carried at the same time. Its boxes come from the slots rather
-  // than from the pills, so the seven weekday positions show through whether or not they are taken.
+  // two columns of the page, never carried at the same time.
+  //
+  // The boxes come from the frame inside each slot — the pill, or the dashed stand-in when the slot
+  // is empty — not from the slot itself. A slot spans its whole column while the frame is capped at
+  // the pill's own width range and pinned left, so outlining slots would draw boxes wider than the
+  // pills they stand for and the two would visibly disagree the moment a carry began.
   const paintChipGrid = useCallback(() => {
     const strip = stripRef.current;
     if (strip === null) return;
-    paintLattice(strip, daySlotBoxes().map((slot) => slot.getBoundingClientRect()), chipGridShown);
+    const frames = daySlotBoxes()
+      .map((slot) => slot.firstElementChild)
+      .filter((frame): frame is Element => frame !== null);
+    paintLattice(strip, frames.map((frame) => frame.getBoundingClientRect()), chipGridShown);
   }, []);
 
   const clearChipGrid = useCallback(() => {
@@ -959,7 +975,7 @@ export function PlanEditor(props: PlanEditorProps) {
                     >
                       <label className="field" style={{ flex: "1 1 190px" }}>
                         <span>训练日名称</span>
-                        <input name="name" defaultValue={selectedDay.name} required maxLength={80} />
+                        <input name="name" defaultValue={selectedDay.name} required maxLength={DAY_NAME_MAX_LENGTH} />
                       </label>
                       <label className="field" style={{ flex: "0 1 150px" }}>
                         <span>建议星期</span>
@@ -1218,7 +1234,7 @@ export function PlanEditor(props: PlanEditorProps) {
             <form className="dialog-form" onSubmit={submitDay} data-testid="day-form">
               <label className="field">
                 <span>训练日名称</span>
-                <input name="name" placeholder="例如：推日" required maxLength={80} autoFocus />
+                <input name="name" placeholder="例如：推日" required maxLength={DAY_NAME_MAX_LENGTH} autoFocus />
               </label>
               <label className="field">
                 <span>建议星期</span>
