@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { weightFromGrams } from "../lib/weights";
 import type { Exercise, ExerciseProgress, Plan, PlannedExercise, WorkoutDay } from "./workout-types";
 
@@ -59,13 +59,55 @@ function moved(list: string[], from: number, to: number) {
   return next;
 }
 
-/** Returns a new array with the item at `from` dropped at `to`, or `null` when nothing changes. */
-function reordered(list: string[], from: number, to: number) {
-  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return null;
-  const next = [...list];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
+/** The cards currently on screen, in DOM order — which is always the arrangement being shown. */
+function plannedCards() {
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-testid="planned-row"]'));
+}
+
+/**
+ * Slides each resting card toward the slot it would take once the dragged card lands, by
+ * translating it from where it is now to where that slot is. Only transform is touched, so the
+ * list never reflows and the measurement stays valid for the next frame.
+ */
+function moveSiblings(cards: HTMLElement[], resting: (DOMRect | null)[]) {
+  cards.forEach((card, index) => {
+    const from = resting[index];
+    if (from === null || from === undefined) return;
+    const to = card.getBoundingClientRect();
+    card.style.transition = "transform 160ms var(--ease)";
+    card.style.transform = `translate3d(${Math.round(from.left - to.left)}px,${Math.round(from.top - to.top)}px,0)`;
+  });
+}
+
+/**
+ * Picks the slot a dragged card would land in, given the pointer's viewport position.
+ *
+ * The target index is a *boundary* between cards, not a card: dropping into the gap before card 3
+ * is index 3, and the gap after the last card is `cards.length`. The nearest boundary is found by
+ * measuring the pointer against each card's mid-line, which keeps the decision uniform for a card
+ * in the first column and one in the last.
+ *
+ * `skip` is the card being carried. It rides under the pointer, so leaving it in the search would
+ * let it win the nearest-card test against the very slot the pointer is aiming at, and the list
+ * would then never rearrange.
+ */
+function dropSlotFor(cardRects: (DOMRect | null)[], pointer: { x: number; y: number }, skip: number) {
+  const { x, y } = pointer;
+  let best = -1;
+  let bestDistance = Infinity;
+  cardRects.forEach((rect, index) => {
+    if (!rect || index === skip) return;
+    const middle = rect.left + rect.width / 2;
+    // Folding the vertical distance into the same cost as the horizontal one is what makes a card
+    // in the row below reachable at all, and it is a plain Euclidean distance, so the boundary
+    // between "this row" and "the next" sits at the same offset in every column.
+    const distance = Math.hypot(rect.left - x, rect.top - y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = x < middle ? index : index + 1;
+    }
+  });
+  return bestDistance === Infinity ? -1 : best;
 }
 
 function meterBars(recent: ExerciseProgress["recent"]) {
@@ -118,8 +160,16 @@ export function PlanEditor(props: PlanEditorProps) {
   const [openRecapId, setOpenRecapId] = useState("");
   const [search, setSearch] = useState("");
   const [pickedExerciseId, setPickedExerciseId] = useState("");
-  const [draggingPlannedId, setDraggingPlannedId] = useState("");
-  const [dropTargetId, setDropTargetId] = useState("");
+  // One piece of state drives the whole drag: `id` is the card under the pointer (live from press
+  // to release), and `committed` is the furthest slot it has already been allowed to occupy, kept
+  // separate so that sliding back toward the origin does not re-fire the reorder on every pixel.
+  const [drag, setDrag] = useState<{ id: string; committed: string } | null>(null);
+  // Read inside the drag effect but written by every press, so it lives in a ref: re-rendering on
+  // each pointer move would make the card lag behind the cursor.
+  const pointerAt = useRef({ x: 0, y: 0 });
+  // The drag effect is only torn down on pointer-up, so it holds a stale `selectedDay` from the
+  // moment the gesture began. Reading the live pair from a ref keeps the committed order correct.
+  const reorderTarget = useRef<{ plan: Plan; day: WorkoutDay } | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
 
   const activePlans = plans.filter((plan) => plan.archivedAt === null);
@@ -129,6 +179,12 @@ export function PlanEditor(props: PlanEditorProps) {
     ?? selectedPlan?.workoutDays[0]
     ?? null;
   const progressFor = (planned: PlannedExercise) => progress.find((item) => item.plannedExerciseId === planned.id);
+  // The drag effect holds whatever `selectedDay` was when the gesture began, so it reads the pair
+  // it should commit against from here instead. An effect rather than an assignment during render,
+  // because a render can be discarded and this has to happen exactly once per committed render.
+  useEffect(() => {
+    reorderTarget.current = selectedPlan !== null && selectedDay !== null ? { plan: selectedPlan, day: selectedDay } : null;
+  }, [selectedPlan, selectedDay]);
 
   // `selectedPlanId` is owned by the workspace, so it can change without the rail being told
   // (creating a plan selects it, restoring a backup replaces every id). Derive the open row
@@ -208,21 +264,135 @@ export function PlanEditor(props: PlanEditorProps) {
     if (next) void onReorderPlannedExercises(selectedPlan, selectedDay, next);
   }
 
-  /** Drops the dragged card onto another card's slot, moving the rest along. */
-  function dropPlannedExercise(targetId: string) {
-    const source = draggingPlannedId;
-    setDraggingPlannedId("");
-    setDropTargetId("");
-    if (!selectedPlan || !selectedDay || source === "" || source === targetId) return;
-    const ids = selectedDay.plannedExercises.map((planned) => planned.id);
-    const next = reordered(ids, ids.indexOf(source), ids.indexOf(targetId));
-    if (next) void onReorderPlannedExercises(selectedPlan, selectedDay, next);
+  /**
+   * Starts a press-to-drag on a card. Native HTML5 drag is deliberately avoided here: its drag
+   * image is browser-drawn and lags the pointer at the OS cursor rate, so the card cannot be made
+   * to track the mouse. Moving the element itself is also what lets the siblings be measured and
+   * rearranged live, since the DOM order is then always the arrangement on screen.
+   */
+  function beginPlannedDrag(event: ReactPointerEvent<HTMLElement>, plannedId: string) {
+    // The whole card is the handle, so a press that lands on a control inside it has to stay a
+    // click — otherwise a text selection in an input would start a drag.
+    if (event.button !== 0) return;
+    if (event.target instanceof Element && event.target.closest("input,button,summary,details")) return;
+    // A press would normally start a text selection, which fights the drag for the pointer.
+    event.preventDefault();
+    setDrag({ id: plannedId, committed: plannedId });
   }
 
-  function endPlannedDrag() {
-    setDraggingPlannedId("");
-    setDropTargetId("");
-  }
+  const draggingPlannedId = drag?.id ?? "";
+
+  // The listeners sit on the document rather than the card because once the pointer starts moving
+  // it leaves the card almost immediately, and a re-render must not interrupt the capture.
+  useEffect(() => {
+    if (draggingPlannedId === "") return;
+    const source = plannedCards().find((card) => card.dataset.plannedId === draggingPlannedId);
+    if (source === undefined) return;
+
+    const origin = source.getBoundingClientRect();
+    const grabX = pointerAt.current.x - origin.left;
+    const grabY = pointerAt.current.y - origin.top;
+    // The card is positioned against its nearest *positioned* ancestor, which is not the grid it
+    // sits in, so `offsetLeft` cannot be used to convert viewport coordinates into a transform.
+    // Instead track where the card rests in viewport space and let the delta be the transform.
+    let restLeft = origin.left;
+    let restTop = origin.top;
+    // Applied once so that the moves below, which read layout, are not measured against a stale
+    // midpoint. From here the card is driven purely by `transform`, which never reflows the list.
+    source.style.width = `${origin.width}px`;
+    source.style.height = `${origin.height}px`;
+    document.body.classList.add("is-dragging-card");
+
+    const move = (moveEvent: PointerEvent) => {
+      pointerAt.current = { x: moveEvent.clientX, y: moveEvent.clientY };
+      const card = plannedCards().find((item) => item.dataset.plannedId === draggingPlannedId);
+      if (card === undefined) return;
+      // Suppress the transition for the duration of the move. The card's own entrance transition
+      // would otherwise turn it into a slow-following shape trailing a dozen pixels behind the
+      // cursor, and its `transitionend` would land mid-gesture and force a re-render.
+      card.style.transition = "none";
+      card.style.transform = `translate3d(${Math.round(moveEvent.clientX - grabX - restLeft)}px,${Math.round(moveEvent.clientY - grabY - restTop)}px,0)`;
+      card.style.zIndex = "40";
+      card.dataset.dragging = "true";
+      // Let the hit-test fall through to the cards underneath, so the pointer can always be
+      // matched against a real resting card instead of the one being carried.
+      card.style.pointerEvents = "none";
+
+      const cards = plannedCards();
+      const rects = cards.map((item) => item.getBoundingClientRect());
+      const sourceIndex = cards.indexOf(card);
+      // `slot` is a boundary in the full list, so the card's own two boundaries (its index and the
+      // one just after it) both mean "no move" — they are where it already sits. That also covers
+      // the "pointer drifted a couple of pixels" case for free: a nudge that small cannot reach a
+      // neighbouring card's centre line, so it resolves to the card's own boundary and stops here.
+      const slot = dropSlotFor(rects, { x: moveEvent.clientX, y: moveEvent.clientY }, sourceIndex);
+      if (slot === -1) return;
+      // Shift down when the boundary is past the card, since lifting the card out removes one
+      // index from the range the target can live in.
+      const target = Math.min(slot > sourceIndex ? slot - 1 : slot, cards.length - 1);
+      if (target === sourceIndex) return;
+      if (target >= cards.length) return;
+      const list = card.parentElement;
+      if (list === null) return;
+      // Lift the card out before measuring, so that the geometry used to place the siblings
+      // describes the list as it will look once the card has landed.
+      card.remove();
+      cards.splice(sourceIndex, 1);
+      rects.splice(sourceIndex, 1);
+      list.insertBefore(card, cards[target] ?? null);
+      moveSiblings(cards, rects);
+      // The card now rests somewhere new, and the transform has to be expressed relative to that
+      // new resting place. Measuring it while the old transform is still applied would read the
+      // carried position instead, so clear the transform first and read the slot it truly occupies.
+      card.style.transition = "none";
+      card.style.transform = "";
+      const resting = card.getBoundingClientRect();
+      restLeft = resting.left;
+      restTop = resting.top;
+      card.style.transform = `translate3d(${Math.round(moveEvent.clientX - grabX - restLeft)}px,${Math.round(moveEvent.clientY - grabY - restTop)}px,0)`;
+      setDrag((current) => (current === null ? current : { ...current, committed: draggingPlannedId }));
+    };
+
+    const up = () => finishPlannedDrag();
+    const cancel = () => finishPlannedDrag();
+    const keydown = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === "Escape") finishPlannedDrag();
+    };
+
+    function finishPlannedDrag() {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", cancel);
+      document.removeEventListener("keydown", keydown);
+      document.body.classList.remove("is-dragging-card");
+      const cards = plannedCards();
+      for (const card of cards) {
+        card.style.zIndex = "";
+        card.style.pointerEvents = "";
+        delete card.dataset.dragging;
+      }
+      const ids = cards.map((card) => card.dataset.plannedId ?? "").filter((id) => id !== "");
+      const target = reorderTarget.current;
+      setDrag(null);
+      if (target === null) return;
+      // A gesture that never displaced anything should not spend a request.
+      if (ids.join("\u0000") === target.day.plannedExercises.map((planned) => planned.id).join("\u0000")) return;
+      void onReorderPlannedExercises(target.plan, target.day, ids);
+    }
+
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", cancel);
+    document.addEventListener("keydown", keydown);
+
+    return () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", cancel);
+      document.removeEventListener("keydown", keydown);
+      document.body.classList.remove("is-dragging-card");
+    };
+  }, [draggingPlannedId, onReorderPlannedExercises]);
 
   function confirmDeletion() {
     const pending = pendingDeletion;
@@ -612,31 +782,12 @@ export function PlanEditor(props: PlanEditorProps) {
                           className="exercise"
                           data-testid="planned-row"
                           key={planned.id}
-                          draggable
+                          data-planned-id={planned.id}
                           data-dragging={draggingPlannedId === planned.id ? "true" : undefined}
-                          data-drop-target={dropTargetId === planned.id && draggingPlannedId !== planned.id ? "true" : undefined}
-                          onDragStart={(event) => {
-                            // The whole card is the handle, so a drag that starts on a control
-                            // inside it (text selection in the inputs, a click on a button) would
-                            // otherwise be swallowed by the card.
-                            if (event.target instanceof Element && event.target.closest("input,button,summary,details")) {
-                              event.preventDefault();
-                              return;
-                            }
-                            setDraggingPlannedId(planned.id);
-                            event.dataTransfer.effectAllowed = "move";
-                            // Firefox refuses to start a drag without payload on the transfer.
-                            event.dataTransfer.setData("text/plain", planned.id);
+                          onPointerDown={(event) => {
+                            pointerAt.current = { x: event.clientX, y: event.clientY };
+                            beginPlannedDrag(event, planned.id);
                           }}
-                          onDragOver={(event) => {
-                            if (draggingPlannedId === "" || draggingPlannedId === planned.id) return;
-                            event.preventDefault();
-                            event.dataTransfer.dropEffect = "move";
-                            setDropTargetId(planned.id);
-                          }}
-                          onDragLeave={() => setDropTargetId((current) => (current === planned.id ? "" : current))}
-                          onDrop={(event) => { event.preventDefault(); dropPlannedExercise(planned.id); }}
-                          onDragEnd={endPlannedDrag}
                         >
                           <h4>{planned.exercise.name}</h4>
                           <p className="nums">{plannedTarget(planned)}</p>

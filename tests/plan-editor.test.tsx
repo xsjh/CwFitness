@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -60,6 +60,42 @@ function renderEditor(overrides: Partial<Parameters<typeof PlanEditor>[0]> = {})
     />,
   );
   return handlers;
+}
+
+/**
+ * jsdom reports every rect as zero, so the drag's hit-testing has nothing to work with. Laying the
+ * cards out in a row gives them distinct, non-overlapping geometry to resolve against.
+ */
+function stubCardLayout(cards: HTMLElement[]) {
+  cards.forEach((card, index) => {
+    const left = index * 100;
+    card.getBoundingClientRect = () => ({ left, top: 0, right: left + 80, bottom: 60, width: 80, height: 60, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
+    Object.defineProperty(card, "offsetLeft", { value: left, configurable: true });
+    Object.defineProperty(card, "offsetTop", { value: 0, configurable: true });
+  });
+}
+
+/**
+ * Drives a press on `handle`, moves it to `dropX` (a viewport x from `stubCardLayout`'s row), then
+ * releases. The pointer has to be placed by hand: where a card lands depends on which side of a
+ * neighbouring card's centre the pointer ends up, and expressing that as a ratio of the target's
+ * width hides the very boundary the test is about.
+ */
+async function dragCard(handle: HTMLElement, dropX: number) {
+  const from = handle.getBoundingClientRect();
+  const startX = from.left + 4;
+  const startY = from.top + 4;
+
+  fireEvent.pointerDown(handle, { button: 0, clientX: startX, clientY: startY });
+  // jsdom has no PointerEvent, so these are plain events on the document — which is exactly where
+  // the component listens for them.
+  fireEvent(document, pointerMove(dropX, startY));
+  fireEvent.pointerUp(document, { clientX: dropX, clientY: startY });
+  await act(async () => { await Promise.resolve(); });
+}
+
+function pointerMove(clientX: number, clientY: number) {
+  return Object.assign(new Event("pointermove", { bubbles: true }), { clientX, clientY });
 }
 
 describe("PlanEditor", () => {
@@ -205,15 +241,13 @@ describe("PlanEditor", () => {
     expect(handlers.onRenamePlan).toHaveBeenCalledWith(expect.objectContaining({ id: "plan-1" }), "推拉腿");
   });
 
-  it("reorders Planned Exercises by dragging one card onto another", () => {
+  it("reorders Planned Exercises by dragging one card onto another's slot", async () => {
     const handlers = renderEditor();
-    const cards = screen.getAllByTestId("planned-row");
-    const transfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+    const cards = () => screen.getAllByTestId("planned-row");
+    stubCardLayout(cards());
 
-    // jsdom has no DataTransfer of its own, so the handlers are handed a stand-in.
-    fireEvent.dragStart(cards[1], { dataTransfer: transfer });
-    fireEvent.dragOver(cards[0], { dataTransfer: transfer });
-    fireEvent.drop(cards[0], { dataTransfer: transfer });
+    // Dragged left, past the first card's centre line, so it takes that slot and the other shifts up.
+    await dragCard(cards()[1], 20);
 
     expect(handlers.onReorderPlannedExercises).toHaveBeenCalledWith(
       expect.objectContaining({ id: "plan-1" }),
@@ -222,17 +256,27 @@ describe("PlanEditor", () => {
     );
   });
 
-  it("does not start a drag from a control inside the card", () => {
+  it("keeps a card in place when the pointer stays on its own half", async () => {
+    // The boundary between two slots runs through a card's centre line, so wandering around inside
+    // a card's own half — which is what a slightly imprecise grab looks like — must not reorder.
     const handlers = renderEditor();
-    const cards = screen.getAllByTestId("planned-row");
-    const transfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+    const cards = () => screen.getAllByTestId("planned-row");
+    stubCardLayout(cards());
 
-    // Pressing the edit summary selects text inside the card; the card must not hijack that
-    // into a reorder, so the drag never starts and dropping changes nothing.
-    fireEvent.dragStart(within(cards[0]).getByLabelText(/编辑 杠铃深蹲/), { dataTransfer: transfer });
-    fireEvent.drop(cards[1], { dataTransfer: transfer });
+    await dragCard(cards()[0], 20);
 
-    expect(transfer.setData).not.toHaveBeenCalled();
+    expect(handlers.onReorderPlannedExercises).not.toHaveBeenCalled();
+  });
+
+  it("does not start a drag from a control inside the card", async () => {
+    const handlers = renderEditor();
+    const cards = () => screen.getAllByTestId("planned-row");
+    stubCardLayout(cards());
+
+    // Pressing the edit summary has to stay a click; a press that lands on a control must not be
+    // promoted into a reorder, or the popover would open and close on the same gesture.
+    await dragCard(within(cards()[0]).getByLabelText(/编辑 杠铃深蹲/), 160);
+
     expect(handlers.onReorderPlannedExercises).not.toHaveBeenCalled();
   });
 });
