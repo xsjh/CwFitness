@@ -42,23 +42,26 @@ test("a User can sign up, sign out, and sign back in", async ({ page }) => {
   await page.getByRole("button", { name: "新建动作" }).click();
 
   await page.getByRole("button", { name: "计划" }).click();
+  await page.getByRole("button", { name: "新建计划" }).click();
   await page.getByLabel("新计划名称").fill("浏览器测试计划");
   await page.getByRole("button", { name: "创建计划" }).click();
+  await page.getByRole("button", { name: "＋ 训练日" }).click();
   await page.getByLabel("训练日名称").fill("测试训练日");
-  await page.getByRole("button", { name: "添加训练日" }).click();
+  await page.getByRole("button", { name: "创建训练日" }).click();
 
-  await page.locator("summary").filter({ hasText: "添加动作" }).click();
-  await page.locator('select[name="exerciseId"]').selectOption({ label: "已改名深蹲" });
-  await expect(page.getByLabel("目标次数")).toBeVisible();
+  await page.getByRole("button", { name: "＋ 添加动作" }).click();
+  const composer = page.locator(".plan-view .editor").filter({ has: page.locator(".exercise-search") });
+  await composer.locator(".exercise-search").fill("已改名深蹲");
+  await composer.locator(".search-results button").first().click();
+  await expect(page.getByLabel("目标（次 / 秒）")).toBeVisible();
   await expect(page.getByLabel(/重量 kg/)).toBeVisible();
-  await page.locator('select[name="exerciseId"]').selectOption({ label: "测试平板支撑" });
-  await expect(page.getByLabel("目标时长（秒）")).toBeVisible();
-  await expect(page.getByLabel(/重量 kg/)).toBeHidden();
-  await page.getByRole("button", { name: "添加动作" }).click();
-  await expect(page.locator("summary").filter({ hasText: "添加动作" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "测试平板支撑" })).toBeVisible();
+  await composer.locator(".exercise-search").fill("测试平板支撑");
+  await composer.locator(".search-results button").first().click();
+  await expect(page.getByLabel("目标（次 / 秒）")).toBeVisible();
+  await composer.getByRole("button", { name: "加进这个训练日" }).click();
+  await expect(page.getByTestId("planned-row").filter({ hasText: "测试平板支撑" })).toBeVisible();
 
-  await page.getByRole("button", { name: "开始训练" }).click();
+  await page.getByRole("button", { name: /^开始「/ }).click();
   await expect(page.getByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeVisible();
   await page.getByRole("button", { name: "记录完成" }).first().click();
   await expect(page.getByRole("button", { name: "更新记录" })).toBeVisible();

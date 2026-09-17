@@ -50,7 +50,7 @@ export function parseFitnessBackup(value: unknown): FitnessBackup | null {
   }
   for (const plan of plans as RecordValue[]) {
     const days = Array.isArray(plan.workoutDays) ? plan.workoutDays.map(object) : null;
-    if (!validBase(plan) || !text(plan.name) || !(plan.archivedAt === null || date(plan.archivedAt)) || !enumValue(plan.accentColor, ["sage", "slate", "clay", "ocean"]) || !enumValue(plan.coverKey, ["strength", "endurance", "mobility", "balance"]) || !days || days.some((item) => !item)) return null;
+    if (!validBase(plan) || !text(plan.name) || !(plan.archivedAt === null || date(plan.archivedAt)) || !days || days.some((item) => !item)) return null;
     planIds.add(plan.id as string);
     for (const day of days as RecordValue[]) {
       const planned = Array.isArray(day.plannedExercises) ? day.plannedExercises.map(object) : null;

@@ -97,40 +97,42 @@ export async function createExercise(
 
 export async function createPlanWithDay(page: Page, options: { planName: string; dayName: string }) {
   await openView(page, "计划");
-  await page.getByTestId("plan-form").locator('input[name="name"]').fill(options.planName);
-  await page.getByRole("button", { name: "创建计划" }).click();
-  await expect(page.locator(".plan-title-row h2")).toHaveText(options.planName);
+  // "新建计划" opens the inline composer rather than being a permanent form on the page.
+  await page.getByRole("button", { name: "新建计划" }).click();
+  const planForm = page.getByTestId("plan-form");
+  await planForm.locator('input[name="name"]').fill(options.planName);
+  await planForm.getByRole("button", { name: "创建计划" }).click();
+  await expect(page.locator(".plan-view .plan-name")).toHaveText(options.planName);
 
-  const dayForm = page
-    .locator("form.inline-create-form.compact")
-    .filter({ has: page.getByRole("button", { name: "添加训练日" }) });
+  // The new plan becomes the current one, so the day strip offers adding a Workout Day.
+  await page.getByRole("button", { name: "＋ 训练日" }).click();
+  const dayForm = page.locator(".plan-view .editor").filter({ has: page.getByRole("button", { name: "创建训练日" }) });
   await dayForm.locator('input[name="name"]').fill(options.dayName);
-  await dayForm.getByRole("button", { name: "添加训练日" }).click();
-  await expect(page.locator(".day-index-item").filter({ hasText: options.dayName })).toBeVisible();
+  await dayForm.getByRole("button", { name: "创建训练日" }).click();
+  await expect(page.locator(".plan-view .chip").filter({ hasText: options.dayName })).toBeVisible();
 }
 
 export async function addPlannedExercise(
   page: Page,
   options: { exerciseName: string; setCount?: number; targetValue?: number; weight?: number },
 ) {
-  const editor = page.locator("details.planned-exercise-editor");
-  if (!(await editor.evaluate((element) => (element as HTMLDetailsElement).open))) {
-    await editor.locator("summary").click();
-  }
-  await editor.locator('select[name="exerciseId"]').selectOption({ label: options.exerciseName });
+  await page.getByRole("button", { name: "＋ 添加动作" }).click();
+  const composer = page.locator(".plan-view .editor").filter({ has: page.locator(".exercise-search") });
+  // Pick from the searchable list rather than a <select>: the composer is a picker now.
+  await composer.locator(".exercise-search").fill(options.exerciseName);
+  await composer.locator(".search-results button", { hasText: options.exerciseName }).first().click();
 
-  const form = editor.locator("form.planned-form");
-  await form.locator('input[name="setCount"]').fill(String(options.setCount ?? 3));
-  await form.locator('input[name="targetValue"]').fill(String(options.targetValue ?? 8));
+  await composer.locator('input[name="setCount"]').fill(String(options.setCount ?? 3));
+  await composer.locator('input[name="targetValue"]').fill(String(options.targetValue ?? 8));
   if (options.weight !== undefined) {
-    await form.locator('input[name="weight"]').fill(String(options.weight));
+    await composer.locator('input[name="weight"]').fill(String(options.weight));
   }
-  await form.locator('button[type="submit"]').click();
-  await expect(page.locator(".planned-row").filter({ hasText: options.exerciseName })).toBeVisible();
+  await composer.getByRole("button", { name: "加进这个训练日" }).click();
+  await expect(page.getByTestId("planned-row").filter({ hasText: options.exerciseName })).toBeVisible();
 }
 
 export async function startWorkout(page: Page) {
-  await page.locator(".day-title-row").getByRole("button", { name: "开始训练" }).click();
+  await page.locator(".plan-view .start-workout").click();
   await expect(page.getByRole("heading", { name: "完成每组后点击一次即可记录。" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "主要导航" })).toHaveCount(0);
   await expect(page.locator('[data-testid="active-session"]')).toBeVisible();

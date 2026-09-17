@@ -17,8 +17,6 @@ export async function GET(request: Request) {
       name: true,
       version: true,
       archivedAt: true,
-      accentColor: true,
-      coverKey: true,
       workoutDays: {
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
         select: {

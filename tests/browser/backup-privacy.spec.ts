@@ -30,7 +30,7 @@ test("a JSON backup is exported and restored over the current workspace", async 
 
   // Change the workspace after the export, so the restore has something to undo.
   await createPlanWithDay(page, { planName: "之后新增的计划", dayName: "临时训练日" });
-  await expect(page.locator(".plan-index-item")).toHaveCount(2);
+  await expect(page.getByTestId("plan-row")).toHaveCount(2);
 
   await openSettings(page);
   await page.locator('input[type="file"]').setInputFiles(backupPath!);
@@ -42,9 +42,9 @@ test("a JSON backup is exported and restored over the current workspace", async 
   await page.getByRole("button", { name: "关闭设置" }).click();
 
   await openView(page, "计划");
-  await expect(page.locator(".plan-index-item")).toHaveCount(1);
-  await expect(page.locator(".plan-index-item").first()).toContainText(plan);
-  await expect(page.locator(".planned-row")).toContainText(exercise);
+  await expect(page.getByTestId("plan-row")).toHaveCount(1);
+  await expect(page.getByTestId("plan-row").first()).toContainText(plan);
+  await expect(page.getByTestId("planned-row")).toContainText(exercise);
 });
 
 test("a User turns telemetry off and permanently deletes the account", async ({ page }) => {

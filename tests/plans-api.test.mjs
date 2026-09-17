@@ -362,6 +362,13 @@ async function getPlan(cookie, planId) {
   return plan;
 }
 
+async function getWorkoutDay(cookie, planId, dayId) {
+  const plan = await getPlan(cookie, planId);
+  const day = plan.workoutDays.find((item) => item.id === dayId);
+  if (!day) assert.fail(`Workout Day ${dayId} not found`);
+  return day;
+}
+
 test('A User previews and restores a complete versioned JSON backup without partial imports', async () => {
   const cookie = await signUp('BackupOwner');
   const settings = await request('/api/settings', {
@@ -455,6 +462,44 @@ test('Workout Day ordering is versioned and persists through plan reads', async 
   const refreshed = await getPlan(cookie, plan.id);
   assert.deepEqual(refreshed.workoutDays.map((day) => day.id), [second.id, first.id]);
   assert.equal(refreshed.version, current.version + 1);
+});
+
+test('Plan visual identity is no longer read, written or accepted', async () => {
+  const cookie = await signUp('VisualIdentity');
+  const plan = await createPlan(cookie, 'Visual Plan');
+  assert.equal('accentColor' in plan, false, 'plan reads must not expose accentColor');
+  assert.equal('coverKey' in plan, false, 'plan reads must not expose coverKey');
+  const patched = await request(`/api/plans/${plan.id}`, {
+    method: 'PATCH', headers: { cookie }, body: JSON.stringify({ accentColor: 'ocean', coverKey: 'mobility', version: plan.version }),
+  });
+  assert.equal(patched.status, 400, 'a visual-only patch leaves nothing to update');
+  const renamed = await request(`/api/plans/${plan.id}`, {
+    method: 'PATCH', headers: { cookie }, body: JSON.stringify({ name: 'Renamed Plan', version: plan.version }),
+  });
+  assert.equal(renamed.status, 200);
+  assert.equal((await renamed.json()).plan.name, 'Renamed Plan');
+});
+
+test('Planned Exercise ordering is versioned and persists through plan reads', async () => {
+  const cookie = await signUp('PlannedOrdering');
+  const plan = await createPlan(cookie, 'Ordered Exercises Plan');
+  const day = await createWorkoutDay(cookie, plan.id, 'Ordered Day');
+  const press = await createExercise(cookie, { name: 'Order Press', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' });
+  const row = await createExercise(cookie, { name: 'Order Row', resistanceType: 'WEIGHTED', targetType: 'REPETITIONS' });
+  const first = await addPlannedExercise(cookie, plan.id, day.id, { exerciseId: press.id, setCount: 3, targetValue: 8, weight: 40, weightUnit: 'kg' });
+  const second = await addPlannedExercise(cookie, plan.id, day.id, { exerciseId: row.id, setCount: 3, targetValue: 10, weight: 30, weightUnit: 'kg' });
+  const current = await getWorkoutDay(cookie, plan.id, day.id);
+  const response = await request(`/api/plans/${plan.id}/days/${day.id}/exercises/order`, {
+    method: 'PUT', headers: { cookie }, body: JSON.stringify({ plannedExerciseIds: [second.id, first.id], version: current.version }),
+  });
+  assert.equal(response.status, 200);
+  const refreshed = await getWorkoutDay(cookie, plan.id, day.id);
+  assert.deepEqual(refreshed.plannedExercises.map((item) => item.id), [second.id, first.id]);
+  assert.equal(refreshed.version, current.version + 1);
+  const stale = await request(`/api/plans/${plan.id}/days/${day.id}/exercises/order`, {
+    method: 'PUT', headers: { cookie }, body: JSON.stringify({ plannedExerciseIds: [first.id, second.id], version: current.version }),
+  });
+  assert.equal(stale.status, 409, 'replaying a stale ordering is rejected');
 });
 
 async function completeSingleSetSession(cookie, dayId, actualValue, actualWeight) {

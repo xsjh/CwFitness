@@ -60,7 +60,7 @@ describe("WorkoutWorkspace", () => {
   });
 
   it("shows today's data as a bottom text summary without the plan-page prompt", async () => {
-    const plans = [{ id: "plan-1", name: "力量计划", archivedAt: null, accentColor: "sage", coverKey: "strength", version: 1, workoutDays: [{ id: "day-1", name: "腿部训练", suggestedWeekday: null, position: 0, version: 1, plannedExercises: [{ id: "planned-1", exerciseId: "exercise-1", setCount: 3, targetValue: 8, weightGrams: 1000, position: 0, version: 1, exercise: { id: "exercise-1", name: "深蹲", resistanceType: "WEIGHTED", targetType: "REPETITIONS", version: 1 } }] }] }];
+    const plans = [{ id: "plan-1", name: "力量计划", archivedAt: null, version: 1, workoutDays: [{ id: "day-1", name: "腿部训练", suggestedWeekday: null, position: 0, version: 1, plannedExercises: [{ id: "planned-1", exerciseId: "exercise-1", setCount: 3, targetValue: 8, weightGrams: 1000, position: 0, version: 1, exercise: { id: "exercise-1", name: "深蹲", resistanceType: "WEIGHTED", targetType: "REPETITIONS", version: 1 } }] }] }];
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/plans") return Promise.resolve(Response.json({ plans }));
@@ -85,7 +85,7 @@ describe("WorkoutWorkspace", () => {
     expect(screen.queryByText("也可以进入计划页选择任意训练日。")).toBeNull();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "点击查看动作详情" }));
-    expect(await screen.findByRole("heading", { name: "安排训练日，定义每个动作的目标。" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "计划决定目标，训练只记录实际。" })).toBeTruthy();
   });
 
   it("opens settings as a modal from the User menu instead of the main navigation", async () => {
@@ -145,7 +145,7 @@ describe("WorkoutWorkspace", () => {
         setResults: [],
       }],
     };
-    const plans = [{ id: "plan-1", name: "测试计划", archivedAt: null, version: 1, workoutDays: [{ id: "day-1", name: "测试训练日", suggestedWeekday: null, version: 1, plannedExercises: [{ id: "planned-1", exerciseId: "exercise-1", setCount: 3, targetValue: 8, weightGrams: 1000, position: 0, version: 1 }] }] }];
+    const plans = [{ id: "plan-1", name: "测试计划", archivedAt: null, version: 1, workoutDays: [{ id: "day-1", name: "测试训练日", suggestedWeekday: null, version: 1, position: 0, plannedExercises: [{ id: "planned-1", exerciseId: "exercise-1", setCount: 3, targetValue: 8, weightGrams: 1000, position: 0, version: 1, exercise: { id: "exercise-1", name: "测试深蹲", resistanceType: "WEIGHTED", targetType: "REPETITIONS", version: 1 } }] }] }];
     let started = false;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -167,6 +167,7 @@ describe("WorkoutWorkspace", () => {
 
     render(<WorkoutWorkspace user={{ id: "user-1", name: "测试用户", email: "user@example.com" }} deviceId="device-1" onSignOut={vi.fn()} onAuthenticationLost={vi.fn().mockResolvedValue(false)} onAccountDeleted={vi.fn()} />);
     expect(await screen.findByRole("navigation", { name: "主要导航" })).toBeTruthy();
+    // The Today view owns its own start control; the plan page labels its button 开始「训练日」.
     const startButton = await screen.findByRole("button", { name: "开始训练" });
     await userEvent.setup().click(startButton);
 

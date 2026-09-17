@@ -320,10 +320,6 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
     );
   }
 
-  async function updatePlanVisual(plan: Plan, accentColor: string, coverKey: string) {
-    await runMutation(() => apiRequest(`/api/plans/${plan.id}`, { method: "PATCH", body: JSON.stringify({ accentColor, coverKey, version: plan.version }) }), "计划视觉已更新。");
-  }
-
   async function createDay(plan: Plan, name: string, suggestedWeekday: number | null) {
     await runMutation(
       () => apiRequest(`/api/plans/${plan.id}/days`, {
@@ -331,6 +327,26 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
         body: JSON.stringify({ name, suggestedWeekday, version: plan.version }),
       }),
       "训练日已添加。",
+    );
+  }
+
+  async function reorderDays(plan: Plan, dayIds: string[]) {
+    await runMutation(
+      () => apiRequest(`/api/plans/${plan.id}/days/order`, {
+        method: "PUT",
+        body: JSON.stringify({ dayIds, version: plan.version }),
+      }),
+      "训练日顺序已更新。",
+    );
+  }
+
+  async function reorderPlannedExercises(plan: Plan, day: WorkoutDay, plannedExerciseIds: string[]) {
+    await runMutation(
+      () => apiRequest(`/api/plans/${plan.id}/days/${day.id}/exercises/order`, {
+        method: "PUT",
+        body: JSON.stringify({ plannedExerciseIds, version: day.version }),
+      }),
+      "动作顺序已更新。",
     );
   }
 
@@ -345,7 +361,6 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
   }
 
   async function deleteDay(plan: Plan, day: WorkoutDay) {
-    if (!window.confirm(`删除“${day.name}”？历史训练仍会保留。`)) return;
     await runMutation(
       () => apiRequest(`/api/plans/${plan.id}/days/${day.id}`, {
         method: "DELETE",
@@ -381,7 +396,6 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
   }
 
   async function deletePlannedExercise(plan: Plan, day: WorkoutDay, planned: PlannedExercise) {
-    if (!window.confirm(`从“${day.name}”移除“${planned.exercise.name}”？`)) return;
     await runMutation(
       () => apiRequest(`/api/plans/${plan.id}/days/${day.id}/exercises/${planned.id}`, {
         method: "DELETE",
@@ -764,12 +778,13 @@ export function WorkoutWorkspace({ user, deviceId, onSignOut, onAuthenticationLo
                   onSelectPlan={setSelectedPlanId}
                   onCreatePlan={createPlan}
                   onRenamePlan={renamePlan}
-                  onUpdatePlanVisual={updatePlanVisual}
                   onSetArchived={setPlanArchived}
                   onCreateDay={createDay}
+                  onReorderDays={reorderDays}
                   onUpdateDay={updateDay}
                   onDeleteDay={deleteDay}
                   onAddPlannedExercise={addPlannedExercise}
+                  onReorderPlannedExercises={reorderPlannedExercises}
                   onUpdatePlannedExercise={updatePlannedExercise}
                   onDeletePlannedExercise={deletePlannedExercise}
                   onStartWorkout={startWorkout}

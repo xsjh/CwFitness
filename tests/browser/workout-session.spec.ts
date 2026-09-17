@@ -79,8 +79,8 @@ test("an Added Exercise joins the Session without changing the Workout Day", asy
 
   await completeWorkout(page);
   await page.locator(".workspace-nav").getByRole("button", { name: "计划", exact: true }).click();
-  await expect(page.locator(".planned-row")).toHaveCount(1);
-  await expect(page.locator(".planned-row")).not.toContainText("农夫行走");
+  await expect(page.getByTestId("planned-row")).toHaveCount(1);
+  await expect(page.getByTestId("planned-row")).not.toContainText("农夫行走");
 });
 
 test("a Completed Session is corrected and permanently deleted from history", async ({ page }) => {
@@ -108,9 +108,9 @@ test("a Workout Day without exercises cannot start a Workout Session", async ({ 
   await signUp(page, { email: uniqueEmail("empty-day") });
   await createPlanWithDay(page, { planName: plan, dayName: day });
 
-  await expect(page.locator(".day-detail .empty-state")).toContainText("从动作库选择一个动作");
-  await expect(page.locator(".planned-row")).toHaveCount(0);
-  await expect(page.locator(".day-title-row").getByRole("button", { name: "开始训练" })).toBeDisabled();
+  await expect(page.locator(".plan-view .ex-list .empty")).toContainText("还没有动作");
+  await expect(page.getByTestId("planned-row")).toHaveCount(0);
+  await expect(page.locator(".plan-view .day-cta")).toContainText("先给这个训练日添加动作");
 });
 
 test("an archived Workout Plan cannot start new Workout Sessions", async ({ page }) => {
@@ -119,9 +119,12 @@ test("an archived Workout Plan cannot start new Workout Sessions", async ({ page
 
   await page.getByRole("button", { name: "归档计划" }).click();
   await expect(page.locator("p.workspace-notice").first()).toContainText("计划已归档。");
-  await expect(page.locator(".plan-index-item").first()).toContainText("已归档");
-  await expect(page.locator(".day-title-row").getByRole("button", { name: "计划已归档" })).toBeDisabled();
+  // Archiving moves the plan into the collapsed tray, so the Day strip is gone until it opens.
+  await expect(page.locator(".plan-view .archived-tray")).toContainText("已归档（1）");
+  await page.locator(".plan-view .archived-tray").getByRole("button", { name: /已归档/ }).click();
+  await page.locator(".plan-view .archived-tray .row-main").first().click();
+  await expect(page.locator(".plan-view .day-cta")).toContainText("计划已归档，恢复后才能开始训练。");
 
   await page.getByRole("button", { name: "恢复计划" }).click();
-  await expect(page.locator(".day-title-row").getByRole("button", { name: "开始训练" })).toBeEnabled();
+  await expect(page.locator(".plan-view .start-workout")).toBeEnabled();
 });

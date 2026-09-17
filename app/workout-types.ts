@@ -34,8 +34,6 @@ export type Plan = {
   name: string;
   version: number;
   archivedAt: string | null;
-  accentColor: string;
-  coverKey: string;
   workoutDays: WorkoutDay[];
 };
 
