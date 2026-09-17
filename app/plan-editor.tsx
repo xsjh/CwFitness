@@ -145,6 +145,10 @@ function gridLayers(boxes: { left: number; top: number; width: number; height: n
  * and `null` while a card is the one being carried, so the carried card tracks the pointer with no
  * tween in the way.
  *
+ * The carried card is marked opaque rather than the whole list being marked, because opacity on an
+ * ancestor groups its subtree into one compositing layer and would flatten the blur on every card.
+ * The stylesheet reads the mark from the list, so the list is opaque exactly while it holds one.
+ *
  * The role is stated after the attributes so that it wins: dnd-kit announces a sortable as
  * `role="button"`, which would wrap a button — and a summary, and three inputs — in another button.
  * Screen readers cannot make sense of that nesting, and anything looking up a card's action by role

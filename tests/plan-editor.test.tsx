@@ -396,4 +396,27 @@ describe("PlanEditor", () => {
     await act(async () => { await Promise.resolve(); });
     expect(list.dataset.draggingGrid).toBeUndefined();
   });
+
+  it("clears the carried card's own translucency for the duration of the carry", async () => {
+    // A carried card used to sit at .92 opacity, which read as a dim copy rather than the card you
+    // are holding. It now goes fully opaque, and comes back on release — asserted through the
+    // marker, which is what the stylesheet keys off.
+    renderEditor();
+    const cards = () => screen.getAllByTestId("planned-row");
+    stubCardLayout();
+
+    const at = cards()[0].getBoundingClientRect();
+    const x = at.left + 4;
+    const y = at.top + 4;
+    fireEvent.pointerDown(cards()[0], { button: 0, clientX: x, clientY: y, isPrimary: true, pointerId: 1 });
+    expect(cards()[0].dataset.dragging).toBeUndefined();
+
+    fireEvent(document, pointerMove(x + DRAG_ACTIVATION_DISTANCE + 2, y));
+    await act(async () => { await Promise.resolve(); });
+    expect(cards()[0].dataset.dragging).toBe("true");
+
+    fireEvent.pointerUp(document, { clientX: x + DRAG_ACTIVATION_DISTANCE + 2, clientY: y, isPrimary: true, pointerId: 1 });
+    await act(async () => { await Promise.resolve(); });
+    expect(cards()[0].dataset.dragging).toBeUndefined();
+  });
 });

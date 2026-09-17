@@ -265,8 +265,8 @@
 .plan-view .search-results small{color:var(--faint);font-size:10.5px}
 .plan-view .composer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:12px}
 .plan-view .ex-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:22px}
-.plan-view .exercise{position:relative;display:flex;flex-direction:column;padding:13px 13px 11px;border:1px solid var(--line);border-radius:16px;background:var(--raise);min-width:0;cursor:grab;touch-action:none;transition:border-color 140ms var(--ease),opacity 140ms var(--ease)}
-.plan-view .exercise:hover{border-color:rgba(255,255,255,.17)}.plan-view .exercise:active{cursor:grabbing}.plan-view .exercise[data-dragging]{z-index:40;opacity:.92;border-color:rgba(255,255,255,.22);box-shadow:0 22px 48px rgba(0,0,0,.55);will-change:transform}body.is-dragging-card{cursor:grabbing;user-select:none}
+.plan-view .ex-list:has(.exercise[data-dragging]) .exercise{opacity:1}.plan-view .exercise{position:relative;display:flex;flex-direction:column;padding:13px 13px 11px;border:1px solid var(--line);border-radius:16px;background:var(--raise);min-width:0;cursor:grab;touch-action:none;transition:border-color 140ms var(--ease),opacity 140ms var(--ease)}
+.plan-view .exercise:hover{border-color:rgba(255,255,255,.17)}.plan-view .exercise:active{cursor:grabbing}.plan-view .exercise[data-dragging]{z-index:40;opacity:1;border-color:rgba(255,255,255,.22);box-shadow:0 22px 48px rgba(0,0,0,.55);will-change:transform}body.is-dragging-card{cursor:grabbing;user-select:none}
 .plan-view .exercise .card-actions{position:absolute;top:9px;right:9px;display:flex;align-items:center;gap:5px}.plan-view .exercise .remove-planned{padding:3px 8px;font-size:11px;line-height:1.5;opacity:.62}.plan-view .exercise:hover .remove-planned,.plan-view .exercise .remove-planned:focus-visible{opacity:1}
 .plan-view .exercise h4{margin:0;padding-right:86px;font-size:14.5px;font-weight:740;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plan-view .exercise .nums{margin:5px 0 0;color:rgba(255,255,255,.84);font-size:12.5px;font-variant-numeric:tabular-nums}
